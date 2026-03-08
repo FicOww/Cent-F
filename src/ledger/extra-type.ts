@@ -66,6 +66,15 @@ export type BillFilterView = {
     displayCurrency?: string;
 };
 
+export type SettlementConfig = {
+    memberAId?: string | number;
+    memberBId?: string | number;
+    homeTagId?: string;
+    memberATagId?: string;
+    memberBTagId?: string;
+    tagGroupId?: string;
+};
+
 /** 周期记账配置 */
 export type Scheduled = {
     id: string;
@@ -97,6 +106,7 @@ export type PersonalMeta = {
     names?: Record<string, string>;
     rates?: Record<string, number>;
     tagGroups?: BillTagGroup[];
+    settlement?: SettlementConfig;
     scheduleds?: Scheduled[];
     customCSS?: string;
     assistant?: {

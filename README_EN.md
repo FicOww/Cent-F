@@ -103,6 +103,7 @@ The synchronization logic has been abstracted and encapsulated, with future supp
 2. Deploy on [Cloudflare Pages](https://pages.cloudflare.com/) or any static hosting platform  
 3. Manually input your GitHub Token on the login screen to use it  
 4. All ledgers and data are stored in your GitHub repositories  
+5. For a two-person GitHub setup, see [docs/self-host-github-en.md](./docs/self-host-github-en.md)
 
 > For security reasons, the self-hosted method cannot support GitHub/Gitee one-click-authentication. You will need to manually generate a token with read and write permissions for the repository (Repo) on the Github/Gitee settings page, and use it through the manual token input feature.
 Cent uses Cloudflare Workers to deploy an online authentication service, which only provides services for trusted domains. If you require a quick login service, you can refer to the project [cent-github-backend](https://github.com/glink25/cent-github-backend) to create your own backend service and apply for an OAuth app on the corresponding platform yourself.

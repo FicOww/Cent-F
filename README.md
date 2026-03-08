@@ -100,10 +100,11 @@ Cent 内置一套自定义的增量同步策略，仅同步增量差异：
 
 ### 方式二：自行部署
 
-1. Fork 本仓库  
+1. Fork 本仓库 
 2. 在 [Cloudflare Pages](https://pages.cloudflare.com/) 或任意静态托管平台部署  
 3. 在登录界面手动输入 GitHub Token 使用  
 4. 所有账本与数据均存储于你的 GitHub 仓库中  
+5. 双人 GitHub 自部署可参考 [docs/self-host-github.md](./docs/self-host-github.md)
 
 > 出于安全考虑，self-hosted 方式无法支持 Github/Gitee 一键登录，需要自行在Github/Gitee设置页面生成具有Repo读写权限的token，通过手动输入token功能使用。
 Cent使用Cloudflare Workers部署了一个线上鉴权服务，该服务只针对受信任的域名提供服务。如果需要快捷登录服务，可以参考这个项目[cent-github-backend](https://github.com/glink25/cent-github-backend)项目创建自己的后端服务，并自己申请对应平台的OAuth app。

@@ -23,6 +23,7 @@ import {
     FocusTypeSelector,
     FocusTypes,
 } from "@/components/stat/focus-type";
+import SettlementPanel from "@/components/stat/settlement-panel";
 import { TagItem } from "@/components/stat/static-item";
 import { Button } from "@/components/ui/button";
 import { useCurrency } from "@/hooks/use-currency";
@@ -397,6 +398,7 @@ export default function Page() {
                             </div>
                         </div>
                     )}
+                    <SettlementPanel bills={filtered} />
                     <AnalysisCloud
                         bills={
                             focusType === "expense"

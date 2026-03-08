@@ -9,11 +9,13 @@ import type {
     CustomCurrency,
     PersonalMeta,
     Scheduled,
+    SettlementConfig,
 } from "./extra-type";
 
 export type {
     CustomCurrency,
     PersonalMeta,
+    SettlementConfig,
     BillFilter,
     Budget,
     BillTagGroup,
