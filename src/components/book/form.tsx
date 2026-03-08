@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import type { Book } from "@/api/endpoints/type";
 import { loadStorageAPI } from "@/api/storage/dynamic";
 import { useIntl } from "@/locale";
@@ -9,6 +10,38 @@ import modal from "../modal";
 import { Button } from "../ui/button";
 import { Checkbox } from "../ui/checkbox";
 import { Label } from "../ui/label";
+
+const BOOK_NAME_PATTERN = /^[a-zA-Z0-9]+$/;
+
+const getCreateBookError = (error: unknown) => {
+    if (
+        typeof error === "object" &&
+        error !== null &&
+        "response" in error &&
+        typeof error.response === "object" &&
+        error.response !== null &&
+        "data" in error.response
+    ) {
+        const data = error.response.data;
+        if (
+            typeof data === "object" &&
+            data !== null &&
+            "message" in data &&
+            typeof data.message === "string"
+        ) {
+            return data.message;
+        }
+    }
+    if (
+        typeof error === "object" &&
+        error !== null &&
+        "message" in error &&
+        typeof error.message === "string"
+    ) {
+        return error.message;
+    }
+    return "";
+};
 
 export function BookForm() {
     const t = useIntl();
@@ -121,18 +154,32 @@ export function BookForm() {
                 <Button
                     disabled={creating}
                     onClick={async () => {
-                        const name = (await modal.prompt({
+                        const rawName = (await modal.prompt({
                             title: t("please-input-book-name"),
                             input: { type: "text" },
                         })) as string;
+                        const name = rawName?.trim();
                         if (!name) {
+                            return;
+                        }
+                        if (!BOOK_NAME_PATTERN.test(name)) {
+                            toast.error(t("invalid-book-name"));
                             return;
                         }
                         setCreating(true);
                         const { StorageAPI } = await loadStorageAPI();
                         try {
-                            const store = await StorageAPI.createBook(name);
+                            await StorageAPI.createBook(name);
                             await useBookStore.getState().updateBookList();
+                        } catch (error) {
+                            const message = getCreateBookError(error);
+                            toast.error(
+                                message
+                                    ? t("create-book-failed-with-error", {
+                                          error: message,
+                                      })
+                                    : t("create-book-failed"),
+                            );
                         } finally {
                             setCreating(false);
                         }
