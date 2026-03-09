@@ -1,21 +1,45 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useShallow } from "zustand/shallow";
 import type { BillTag } from "@/components/bill-tag/type";
 import type { BillTagGroup } from "@/ledger/type";
 import { t } from "@/locale";
 import { useLedgerStore } from "@/store/ledger";
 import { useUserStore } from "@/store/user";
+import {
+    getEffectiveTagGroups,
+    getLegacyPersonalTagGroups,
+} from "@/utils/tag-config";
 
 export function useTag() {
-    const [tags = [], tagGroups = []] = useLedgerStore(
-        useShallow((state) => {
-            const userId = useUserStore.getState().id;
-            return [
-                state.infos?.meta.tags,
-                state.infos?.meta.personal?.[userId]?.tagGroups,
-            ];
-        }),
+    const userId = useUserStore((state) => state.id);
+    const [meta, tags = []] = useLedgerStore(
+        useShallow((state) => [state.infos?.meta, state.infos?.meta.tags]),
     );
+
+    const tagGroups = useMemo(
+        () => getEffectiveTagGroups(meta, userId),
+        [meta, userId],
+    );
+
+    useEffect(() => {
+        const legacyTagGroups = getLegacyPersonalTagGroups(meta, userId);
+        if (meta?.tagGroups !== undefined || !legacyTagGroups?.length) {
+            return;
+        }
+
+        useLedgerStore
+            .getState()
+            .updateGlobalMeta((prev) => {
+                if (prev.tagGroups !== undefined) {
+                    return prev;
+                }
+                prev.tagGroups = legacyTagGroups;
+                return prev;
+            })
+            .catch((error) => {
+                console.error("Failed to migrate tag groups:", error);
+            });
+    }, [meta, userId]);
 
     const updateTag = useCallback(
         (
@@ -78,7 +102,7 @@ export function useTag() {
             id: string,
             newGroup: (Omit<BillTagGroup, "id"> & { id?: string }) | undefined,
         ) => {
-            return useLedgerStore.getState().updatePersonalMeta((prev) => {
+            return useLedgerStore.getState().updateGlobalMeta((prev) => {
                 if (newGroup === undefined) {
                     prev.tagGroups = prev.tagGroups?.filter((v) => v.id !== id);
                     return prev;
@@ -97,25 +121,28 @@ export function useTag() {
                         ],
                     };
                 }
-                const newGroups = prev.tagGroups ?? [];
-                newGroups[index] = { ...newGroup, id };
-                return prev;
+                const nextGroups = [...(prev.tagGroups ?? [])];
+                nextGroups[index] = { ...newGroup, id };
+                return {
+                    ...prev,
+                    tagGroups: nextGroups,
+                };
             });
         },
         [],
     );
 
     const topUpGroup = useCallback((groupId: string) => {
-        return useLedgerStore.getState().updatePersonalMeta((prev) => {
+        return useLedgerStore.getState().updateGlobalMeta((prev) => {
             const target = prev.tagGroups?.find((v) => v.id === groupId);
             if (!target) {
                 return prev;
             }
-            const newGroups = [
+            const nextGroups = [
                 target,
                 ...(prev.tagGroups?.filter((v) => v.id !== groupId) ?? []),
             ];
-            return { ...prev, tagGroups: newGroups };
+            return { ...prev, tagGroups: nextGroups };
         });
     }, []);
 
@@ -127,4 +154,5 @@ export function useTag() {
         topUpGroup,
     };
 }
+
 export type BillTagGroupDetail = BillTagGroup & { tags: BillTag[] };
