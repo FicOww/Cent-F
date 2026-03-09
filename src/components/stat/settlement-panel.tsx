@@ -14,6 +14,12 @@ import { useIntl } from "@/locale";
 import { useLedgerStore } from "@/store/ledger";
 import { useUserStore } from "@/store/user";
 import { cn } from "@/utils";
+import {
+    getEffectiveSettlementConfig,
+    getEffectiveTagGroups,
+    getLegacyPersonalSettlementConfig,
+    getLegacyPersonalTagGroups,
+} from "@/utils/tag-config";
 import Money from "../money";
 import { Button } from "../ui/button";
 import {
@@ -68,16 +74,45 @@ export default function SettlementPanel({ bills }: { bills: Bill[] }) {
     const t = useIntl();
     const creators = useCreators();
     const userId = useUserStore((state) => state.id);
-    const [config, tagGroups = [], tags = []] = useLedgerStore(
-        useShallow((state) => {
-            const personal = state.infos?.meta.personal?.[`${userId}`];
-            return [
-                personal?.settlement,
-                personal?.tagGroups,
-                state.infos?.meta.tags,
-            ];
-        }),
+    const [meta, tags = []] = useLedgerStore(
+        useShallow((state) => [state.infos?.meta, state.infos?.meta.tags]),
     );
+
+    const config = useMemo(
+        () => getEffectiveSettlementConfig(meta, userId),
+        [meta, userId],
+    );
+    const tagGroups = useMemo(
+        () => getEffectiveTagGroups(meta, userId),
+        [meta, userId],
+    );
+
+    useEffect(() => {
+        const legacyConfig = getLegacyPersonalSettlementConfig(meta, userId);
+        const legacyTagGroups = getLegacyPersonalTagGroups(meta, userId);
+
+        if (
+            (meta?.settlement !== undefined || !legacyConfig) &&
+            (meta?.tagGroups !== undefined || !legacyTagGroups?.length)
+        ) {
+            return;
+        }
+
+        useLedgerStore
+            .getState()
+            .updateGlobalMeta((prev) => {
+                if (prev.settlement === undefined && legacyConfig) {
+                    prev.settlement = legacyConfig;
+                }
+                if (prev.tagGroups === undefined && legacyTagGroups?.length) {
+                    prev.tagGroups = legacyTagGroups;
+                }
+                return prev;
+            })
+            .catch((error) => {
+                console.error("Failed to migrate settlement config:", error);
+            });
+    }, [meta, userId]);
 
     const creatorOptions = useMemo(
         () => buildCreatorOptions(creators),
@@ -182,7 +217,24 @@ export default function SettlementPanel({ bills }: { bills: Bill[] }) {
         };
 
         await useLedgerStore.getState().updateGlobalMeta((prev) => {
+            const nextGroup = {
+                id: nextConfig.tagGroupId,
+                name: SETTLEMENT_GROUP_NAME,
+                color: "blue",
+                singleSelect: true,
+                required: true,
+                tagIds: [
+                    nextConfig.homeTagId,
+                    nextConfig.memberATagId,
+                    nextConfig.memberBTagId,
+                ],
+            };
             const nextTags = [...(prev.tags ?? [])];
+            const nextGroups = [...(prev.tagGroups ?? [])];
+            const groupIndex = nextGroups.findIndex(
+                (group) => group.id === nextConfig.tagGroupId,
+            );
+
             prev.tags = upsertTag(
                 nextTags,
                 nextConfig.homeTagId,
@@ -198,36 +250,16 @@ export default function SettlementPanel({ bills }: { bills: Bill[] }) {
                 nextConfig.memberBTagId,
                 memberB.name,
             );
-            return prev;
-        });
 
-        await useLedgerStore.getState().updatePersonalMeta((prev) => {
-            const nextGroups = [...(prev.tagGroups ?? [])];
-            const nextGroup = {
-                id: nextConfig.tagGroupId,
-                name: SETTLEMENT_GROUP_NAME,
-                color: "blue",
-                singleSelect: true,
-                required: true,
-                tagIds: [
-                    nextConfig.homeTagId,
-                    nextConfig.memberATagId,
-                    nextConfig.memberBTagId,
-                ],
-            };
-            const groupIndex = nextGroups.findIndex(
-                (group) => group.id === nextConfig.tagGroupId,
-            );
             if (groupIndex === -1) {
                 nextGroups.unshift(nextGroup);
             } else {
                 nextGroups[groupIndex] = nextGroup;
             }
-            return {
-                ...prev,
-                tagGroups: nextGroups,
-                settlement: nextConfig,
-            };
+
+            prev.tagGroups = nextGroups;
+            prev.settlement = nextConfig;
+            return prev;
         });
 
         toast.success(t("settlement-config-saved"));
