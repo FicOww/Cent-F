@@ -66,6 +66,73 @@ export interface PieChartDataItem {
  */
 export type EchartsDatasetSource = (string | number)[][];
 
+const getChartTheme = () => {
+    const foreground = getCSSVariable("--foreground") || "#f5f5f7";
+    const mutedForeground = getCSSVariable("--muted-foreground") || "#a1a1aa";
+    const border = getCSSVariable("--border") || "rgba(255,255,255,0.08)";
+    const card = getCSSVariable("--card") || "rgba(28,28,30,0.72)";
+    const popover = getCSSVariable("--popover") || "rgba(28,28,30,0.82)";
+    return {
+        foreground,
+        mutedForeground,
+        border,
+        card,
+        popover,
+    };
+};
+
+const createCommonChartOption = (): ECOption => {
+    const theme = getChartTheme();
+    return {
+        title: {
+            textStyle: {
+                color: theme.foreground,
+                fontWeight: 600,
+                fontSize: 18,
+            },
+        },
+        legend: {
+            textStyle: {
+                color: theme.mutedForeground,
+            },
+        },
+        tooltip: {
+            backgroundColor: theme.popover,
+            borderColor: theme.border,
+            borderWidth: 1,
+            textStyle: {
+                color: theme.foreground,
+            },
+        },
+        xAxis: {
+            axisLabel: {
+                color: theme.mutedForeground,
+            },
+            axisLine: {
+                lineStyle: {
+                    color: theme.border,
+                },
+            },
+        },
+        yAxis: {
+            axisLabel: {
+                color: theme.mutedForeground,
+            },
+            axisLine: {
+                lineStyle: {
+                    color: theme.border,
+                },
+            },
+            splitLine: {
+                lineStyle: {
+                    color: theme.border,
+                    opacity: 0.75,
+                },
+            },
+        },
+    };
+};
+
 /**
  * 最终处理完成的图表数据
  */
@@ -427,6 +494,7 @@ export const overallTrendOption = (
     options?: ECOption,
 ) =>
     merge(
+        createCommonChartOption(),
         {
             // 提示框，'axis' 表示鼠标悬浮在x轴上时触发
             tooltip: {
@@ -445,12 +513,13 @@ export const overallTrendOption = (
                 type: "category",
                 boundaryGap: false, // 折线图建议设为 false，让线贴近y轴
                 axisLabel: {
+                    color: getChartTheme().mutedForeground,
                     fontSize: 10, // 设置 y 轴刻度标签字体大小
                 },
                 axisLine: {
                     show: true, // 确保 X 轴线显示
                     lineStyle: {
-                        color: "#666", // 可以设置轴线颜色
+                        color: getChartTheme().border, // 可以设置轴线颜色
                         width: 1, // 可以设置轴线宽度
                         // type: 'solid'  // 也可以设置线的类型，如实线 'solid'，虚线 'dashed'
                     },
@@ -468,12 +537,13 @@ export const overallTrendOption = (
                     },
                 },
                 axisLabel: {
+                    color: getChartTheme().mutedForeground,
                     fontSize: 10, // 设置 y 轴刻度标签字体大小
                 },
                 axisLine: {
                     show: true, // 确保 X 轴线显示
                     lineStyle: {
-                        color: "#666", // 可以设置轴线颜色
+                        color: getChartTheme().border, // 可以设置轴线颜色
                         width: 1, // 可以设置轴线宽度
                         // type: 'solid'  // 也可以设置线的类型，如实线 'solid'，虚线 'dashed'
                     },
@@ -494,7 +564,11 @@ export const overallTrendOption = (
                     color: getCSSVariable("--color-expense"),
                 },
                 // 第四列('结余')映射到第三个系列
-                { type: "line", smooth: true, color: "black" },
+                {
+                    type: "line",
+                    smooth: true,
+                    color: getChartTheme().foreground,
+                },
             ],
         },
         options,
@@ -513,7 +587,7 @@ export const userTrendOption = (
 ): ECOption => {
     const seriesCount = dataset.source[0].length - 1;
 
-    const baseOption: ECOption = {
+    const baseOption: ECOption = merge(createCommonChartOption(), {
         tooltip: { trigger: "axis" },
         legend: {},
         dataset: dataset,
@@ -529,12 +603,13 @@ export const userTrendOption = (
             },
             color: collaboratorColors(dataset.source[0][i + 1] as string),
         })),
-    };
+    });
 
     return merge(baseOption, options);
 };
 
 export const structureOption = (dataset: any[], options?: ECOption) => {
+    const theme = getChartTheme();
     // 处理数据，为每一项注入基于 name 的固定颜色
     const coloredData = sortBy(dataset, (v) => v.value).map((item) => ({
         ...item,
@@ -545,6 +620,7 @@ export const structureOption = (dataset: any[], options?: ECOption) => {
     }));
 
     return merge(
+        createCommonChartOption(),
         {
             title: {
                 text: "支出结构",
@@ -564,6 +640,9 @@ export const structureOption = (dataset: any[], options?: ECOption) => {
                     type: "pie",
                     center: ["55%", "50%"],
                     radius: "55%",
+                    label: {
+                        color: theme.foreground,
+                    },
                     labelLine: {
                         show: true,
                         length: 10,
@@ -571,7 +650,7 @@ export const structureOption = (dataset: any[], options?: ECOption) => {
                         lineStyle: {
                             width: 1,
                             type: "solid",
-                            color: "#aaa",
+                            color: getChartTheme().border,
                         },
                         smooth: 0.2,
                     },
@@ -581,7 +660,7 @@ export const structureOption = (dataset: any[], options?: ECOption) => {
                         itemStyle: {
                             shadowBlur: 10,
                             shadowOffsetX: 0,
-                            shadowColor: "rgba(0, 0, 0, 0.5)",
+                            shadowColor: theme.card,
                         },
                     },
                 },
