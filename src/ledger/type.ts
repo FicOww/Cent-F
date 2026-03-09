@@ -2,6 +2,7 @@
 import type { Full } from "@/database/stash";
 // @annotation: 其他工具type，无需考虑
 import type {
+    AssistantMeta,
     BillFilter,
     BillFilterView,
     BillTagGroup,
@@ -13,6 +14,7 @@ import type {
 } from "./extra-type";
 
 export type {
+    AssistantMeta,
     CustomCurrency,
     PersonalMeta,
     SettlementConfig,
@@ -122,6 +124,7 @@ export type GlobalMeta = {
     baseCurrency?: string;
     customCurrencies?: CustomCurrency[];
     quickCurrencies?: string[];
+    assistant?: AssistantMeta;
     map?: {
         amapKey?: string;
         amapSecurityCode?: string;
