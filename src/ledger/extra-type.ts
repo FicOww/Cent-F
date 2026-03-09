@@ -101,6 +101,14 @@ export type AIConfig = {
     apiType: "open-ai-compatible" | "google-ai-studio"; // 支持OpenAI兼容和Google AI Studio两种API格式
 };
 
+export type AssistantMeta = {
+    bigmodel?: {
+        apiKey?: string;
+    };
+    configs?: AIConfig[];
+    defaultConfigId?: string;
+};
+
 // 个人配置，不需要转换，可以略过
 export type PersonalMeta = {
     names?: Record<string, string>;
@@ -109,13 +117,7 @@ export type PersonalMeta = {
     settlement?: SettlementConfig;
     scheduleds?: Scheduled[];
     customCSS?: string;
-    assistant?: {
-        bigmodel?: {
-            apiKey?: string;
-        };
-        configs?: AIConfig[];
-        defaultConfigId?: string;
-    };
+    assistant?: AssistantMeta;
 };
 
 export type CustomCurrency = {

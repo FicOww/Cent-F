@@ -6,6 +6,10 @@ import type { AIConfig } from "@/ledger/extra-type";
 import { useIntl } from "@/locale";
 import { useLedgerStore } from "@/store/ledger";
 import { useUserStore } from "@/store/user";
+import {
+    getLegacyPersonalAssistantData,
+    getSharedAssistantData,
+} from "@/utils/assistant-config";
 import { cn } from "@/utils";
 import { decodeApiKey, encodeApiKey } from "@/utils/api-key";
 import { requestAI } from "../assistant/request";
@@ -320,8 +324,7 @@ function Form({ onCancel }: { onCancel?: () => void }) {
     // 获取配置列表和默认配置ID
     const { configs, defaultConfigId } = useLedgerStore(
         useShallow((state) => {
-            const assistantData =
-                state.infos?.meta.personal?.[userId]?.assistant;
+            const assistantData = getSharedAssistantData(state.infos?.meta);
             return {
                 configs: assistantData?.configs,
                 defaultConfigId: assistantData?.defaultConfigId,
@@ -332,50 +335,56 @@ function Form({ onCancel }: { onCancel?: () => void }) {
     // 迁移旧的智谱GLM配置
     useEffect(() => {
         const migrateOldConfig = async () => {
-            const oldApiKey =
-                useLedgerStore.getState().infos?.meta.personal?.[userId]
-                    ?.assistant?.bigmodel?.apiKey;
-            const existingConfigs =
-                useLedgerStore.getState().infos?.meta.personal?.[userId]
-                    ?.assistant?.configs ?? [];
-
-            // 如果有旧配置且还没有迁移
-            if (
-                oldApiKey &&
-                !existingConfigs.some((c) => c.id === "zhipu-glm-migrated")
-            ) {
-                await useLedgerStore.getState().updatePersonalMeta((prev) => {
-                    if (!prev.assistant) {
-                        prev.assistant = {};
-                    }
-                    if (!prev.assistant.configs) {
-                        prev.assistant.configs = [];
-                    }
-
-                    // 添加迁移的配置
-                    prev.assistant.configs.push({
-                        id: "zhipu-glm-migrated",
-                        name: "智谱GLM",
-                        apiKey: oldApiKey,
-                        apiUrl: "https://open.bigmodel.cn/api/paas/v4",
-                        model: "glm-4-flash",
-                        apiType: "open-ai-compatible",
-                    });
-
-                    // 如果没有默认配置，设置这个为默认
-                    if (!prev.assistant.defaultConfigId) {
-                        prev.assistant.defaultConfigId = "zhipu-glm-migrated";
-                    }
-
-                    // 删除旧的配置
-                    delete prev.assistant.bigmodel;
-
-                    return prev;
-                });
+            const meta = useLedgerStore.getState().infos?.meta;
+            const sharedAssistant = getSharedAssistantData(meta);
+            if (sharedAssistant?.configs?.length) {
+                return;
             }
+
+            const legacyAssistant = getLegacyPersonalAssistantData(meta, userId);
+            if (!legacyAssistant) {
+                return;
+            }
+
+            await useLedgerStore.getState().updateGlobalMeta((prev) => {
+                if (prev.assistant?.configs?.length) {
+                    return prev;
+                }
+
+                const legacyConfigs = legacyAssistant.configs ?? [];
+                const nextConfigs =
+                    legacyConfigs.length > 0
+                        ? legacyConfigs
+                        : legacyAssistant.bigmodel?.apiKey
+                          ? [
+                                {
+                                    id: "zhipu-glm-migrated",
+                                    name: "智谱GLM",
+                                    apiKey: legacyAssistant.bigmodel.apiKey,
+                                    apiUrl:
+                                        "https://open.bigmodel.cn/api/paas/v4",
+                                    model: "glm-4-flash",
+                                    apiType: "open-ai-compatible" as const,
+                                },
+                            ]
+                          : [];
+
+                if (nextConfigs.length === 0) {
+                    return prev;
+                }
+
+                prev.assistant = {
+                    configs: nextConfigs,
+                    defaultConfigId:
+                        legacyAssistant.defaultConfigId ?? nextConfigs[0].id,
+                };
+                return prev;
+            });
         };
 
-        migrateOldConfig();
+        migrateOldConfig().catch((error) => {
+            console.error("Failed to migrate assistant config:", error);
+        });
     }, [userId]);
 
     const handleCreateConfig = useCallback(async () => {
@@ -383,7 +392,7 @@ function Form({ onCancel }: { onCancel?: () => void }) {
         if (!config) {
             return;
         }
-        await useLedgerStore.getState().updatePersonalMeta((prev) => {
+        await useLedgerStore.getState().updateGlobalMeta((prev) => {
             if (!prev.assistant) {
                 prev.assistant = {};
             }
@@ -409,7 +418,7 @@ function Form({ onCancel }: { onCancel?: () => void }) {
             if (!updatedConfig) {
                 return;
             }
-            await useLedgerStore.getState().updatePersonalMeta((prev) => {
+            await useLedgerStore.getState().updateGlobalMeta((prev) => {
                 if (!prev.assistant?.configs) return prev;
 
                 const index = prev.assistant.configs.findIndex(
@@ -427,7 +436,7 @@ function Form({ onCancel }: { onCancel?: () => void }) {
     );
 
     const handleSetDefault = useCallback(async (configId: string) => {
-        await useLedgerStore.getState().updatePersonalMeta((prev) => {
+        await useLedgerStore.getState().updateGlobalMeta((prev) => {
             if (!prev.assistant) {
                 prev.assistant = {};
             }
@@ -441,7 +450,7 @@ function Form({ onCancel }: { onCancel?: () => void }) {
             await modal.prompt({
                 title: t("are-you-sure-to-delete-this-config"),
             });
-            await useLedgerStore.getState().updatePersonalMeta((prev) => {
+            await useLedgerStore.getState().updateGlobalMeta((prev) => {
                 if (!prev.assistant?.configs) return prev;
 
                 prev.assistant.configs = prev.assistant.configs.filter(

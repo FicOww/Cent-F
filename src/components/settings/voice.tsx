@@ -4,6 +4,7 @@ import { useIntl } from "@/locale";
 import { useLedgerStore } from "@/store/ledger";
 import { usePreference } from "@/store/preference";
 import { useUserStore } from "@/store/user";
+import { getEffectiveAssistantData } from "@/utils/assistant-config";
 import { isSpeechRecognitionSupported } from "../add-button/recognize";
 import createConfirmProvider from "../confirm";
 import { Button } from "../ui/button";
@@ -16,8 +17,10 @@ function Form({ onCancel }: { onCancel?: () => void }) {
     // 获取AI配置信息
     const { configs = [], defaultConfigId } = useLedgerStore(
         useShallow((state) => {
-            const assistantData =
-                state.infos?.meta.personal?.[userId]?.assistant;
+            const assistantData = getEffectiveAssistantData(
+                state.infos?.meta,
+                userId,
+            );
             return {
                 configs: assistantData?.configs,
                 defaultConfigId: assistantData?.defaultConfigId,

@@ -2,6 +2,7 @@ import type { AIConfig } from "@/ledger/extra-type";
 import { t } from "@/locale";
 import { useLedgerStore } from "@/store/ledger";
 import { useUserStore } from "@/store/user";
+import { getEffectiveAssistantData } from "@/utils/assistant-config";
 import { decodeApiKey } from "@/utils/api-key";
 
 /**
@@ -11,8 +12,8 @@ import { decodeApiKey } from "@/utils/api-key";
  */
 function getAIConfig(): AIConfig {
     const userId = useUserStore.getState().id;
-    const assistantData =
-        useLedgerStore.getState().infos?.meta.personal?.[userId]?.assistant;
+    const meta = useLedgerStore.getState().infos?.meta;
+    const assistantData = getEffectiveAssistantData(meta, userId);
 
     // 优先使用新的配置系统
     if (assistantData?.configs && assistantData.configs.length > 0) {
