@@ -1,6 +1,8 @@
 import { useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router";
+import { useTheme } from "@/hooks/use-theme";
+import { cn } from "@/utils";
 import ComplexAddButton from "./add-button";
 import { goAddBill } from "./bill-editor";
 import { afterAddBillPromotion } from "./promotion";
@@ -9,6 +11,7 @@ import { showSettings } from "./settings";
 export default function Navigation() {
     const location = useLocation();
     const navigate = useNavigate();
+    const { theme, toggle } = useTheme();
 
     const currentTab = useMemo(() => {
         return ["/stat", "/", "/search"].find((x) => location.pathname === x);
@@ -17,6 +20,19 @@ export default function Navigation() {
     const switchTab = (value: "/" | "/stat" | "/search") => {
         navigate(`${value}`);
     };
+
+    const isDarkTheme = (() => {
+        if (theme === "dark") {
+            return true;
+        }
+        if (theme === "light") {
+            return false;
+        }
+        return (
+            window.matchMedia &&
+            window.matchMedia("(prefers-color-scheme: dark)").matches
+        );
+    })();
 
     return createPortal(
         <div
@@ -64,11 +80,26 @@ export default function Navigation() {
                     }`}
                     onClick={() => switchTab("/stat")}
                 >
-                    {/* <div className="transform translate-x-[25%] translate-y-[-25%]"> */}
                     <i className="icon-[mdi--chart-box-outline] size-5"></i>
-                    {/* </div> */}
                 </button>
             </div>
+
+            {/* theme */}
+            <button
+                type="button"
+                title="Toggle theme"
+                className="w-14 h-14 sm:w-10 sm:h-10 cursor-pointer flex items-center justify-center rounded-full shadow-md m-2 transition-all hover:bg-[#9a9ba2] active:bg-[#cdcdd0] bg-background dark:bg-stone-500 dark:hover:bg-[#aba8a5]"
+                onClick={toggle}
+            >
+                <i
+                    className={cn(
+                        "size-5",
+                        isDarkTheme
+                            ? "icon-[mdi--weather-sunny]"
+                            : "icon-[mdi--weather-night]",
+                    )}
+                ></i>
+            </button>
 
             {/* settings */}
             <button
