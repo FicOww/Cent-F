@@ -16,15 +16,24 @@ export function CategoryItem({
     onClick?: MouseEventHandler<HTMLButtonElement>;
     className?: string;
 }) {
+    const selectedStyle = selected
+        ? {
+              backgroundColor: "#0a84ff",
+              color: "#ffffff",
+              borderColor: "#0a84ff",
+          }
+        : undefined;
+
     return (
         <button
             type="button"
+            style={selectedStyle}
             className={cn(
                 `rounded-lg border flex-1 py-1 px-2 h-8 flex items-center justify-center whitespace-nowrap cursor-pointer`,
-                selected
-                    ? "bg-[#0a84ff] text-white border-[#0a84ff] shadow-[0_0_0_2px_rgba(255,255,255,0.08)] dark:shadow-[0_0_0_2px_rgba(10,132,255,0.45)]"
-                    : "bg-stone-200 text-light-900 dark:bg-stone-500 dark:text-stone-100",
                 className,
+                selected
+                    ? "!bg-[#0a84ff] !text-white !border-[#0a84ff] shadow-[0_0_0_2px_rgba(255,255,255,0.08)] dark:shadow-[0_0_0_2px_rgba(10,132,255,0.45)]"
+                    : "bg-stone-200 text-light-900 dark:bg-stone-500 dark:text-stone-100",
             )}
             onMouseDown={onMouseDown}
             onClick={onClick}
