@@ -37,6 +37,8 @@ import { goAddBill } from ".";
 import { RemarkHint } from "./remark";
 import TagGroupSelector from "./tag-group";
 
+const ADD_AGAIN_REOPEN_DELAY_MS = 450;
+
 const defaultBill = {
     type: "expense" as Bill["type"],
     comment: "",
@@ -586,9 +588,9 @@ export default function EditorForm({
                         onKey={(v) => {
                             if (v === "r") {
                                 toConfirm();
-                                setTimeout(() => {
-                                    goAddBill();
-                                }, 10);
+                                window.setTimeout(() => {
+                                    void goAddBill();
+                                }, ADD_AGAIN_REOPEN_DELAY_MS);
                             }
                         }}
                     />
