@@ -22,8 +22,8 @@ export function CategoryItem({
             className={cn(
                 `rounded-lg border flex-1 py-1 px-2 h-8 flex items-center justify-center whitespace-nowrap cursor-pointer`,
                 selected
-                    ? "bg-slate-700 text-white "
-                    : "bg-stone-200  text-light-900 dark:bg-stone-500",
+                    ? "bg-primary text-primary-foreground border-primary shadow-[0_0_0_2px_rgba(255,255,255,0.08)] dark:shadow-[0_0_0_2px_rgba(10,132,255,0.45)]"
+                    : "bg-stone-200 text-light-900 dark:bg-stone-500 dark:text-stone-100",
                 className,
             )}
             onMouseDown={onMouseDown}
