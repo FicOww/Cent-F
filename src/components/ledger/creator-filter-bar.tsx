@@ -43,10 +43,10 @@ export default function CreatorFilterBar({ value, onValueChange }: Props) {
             <button
                 type="button"
                 className={cn(
-                    "h-8 px-3 rounded-full border text-xs font-medium whitespace-nowrap transition-colors",
+                    "h-8 px-3 rounded-full border text-sm whitespace-nowrap transition-colors flex-shrink-0",
                     value === undefined
-                        ? "bg-stone-900 text-white border-stone-900 dark:bg-stone-100 dark:text-stone-900 dark:border-stone-100"
-                        : "bg-background border-border text-foreground/70 hover:text-foreground",
+                        ? "bg-foreground text-background border-foreground"
+                        : "bg-transparent border-border text-foreground/70 hover:text-foreground",
                 )}
                 onClick={() => {
                     onValueChange?.(undefined);
@@ -59,10 +59,10 @@ export default function CreatorFilterBar({ value, onValueChange }: Props) {
                     key={`${option.id}`}
                     type="button"
                     className={cn(
-                        "h-8 px-3 rounded-full border text-xs font-medium whitespace-nowrap transition-colors",
+                        "h-8 px-3 rounded-full border text-sm whitespace-nowrap transition-colors flex-shrink-0",
                         `${value}` === `${option.id}`
-                            ? "bg-stone-900 text-white border-stone-900 dark:bg-stone-100 dark:text-stone-900 dark:border-stone-100"
-                            : "bg-background border-border text-foreground/70 hover:text-foreground",
+                            ? "bg-foreground text-background border-foreground"
+                            : "bg-transparent border-border text-foreground/70 hover:text-foreground",
                     )}
                     onClick={() => {
                         onValueChange?.(option.id);
