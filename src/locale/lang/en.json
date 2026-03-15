@@ -519,6 +519,7 @@
   "settlement-config-member-conflict": "Settlement members must be two different users",
   "settlement-needs-two-creators": "Settlement requires at least two collaborators in the current book.",
   "settlement-missing-attribution-tip": "{n} expense bill(s) are missing a valid 归属 tag, so they are excluded from settlement.",
+  "settlement-attribution-required-tip": "This expense has no attribution yet. Please choose one in {groupName}.",
   "settlement-self-expense": "Expense (self)",
   "settlement-shared-expense": "Expense (home)",
   "settlement-other-expense": "Expense (other)",

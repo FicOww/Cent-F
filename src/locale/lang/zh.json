@@ -528,6 +528,7 @@
   "settlement-config-member-conflict": "结算的两位成员不能是同一人",
   "settlement-needs-two-creators": "当前账本至少需要两位协作者才能使用结算功能。",
   "settlement-missing-attribution-tip": "有 {n} 笔支出账单缺少有效的“归属”标签，已从结算中排除。",
+  "settlement-attribution-required-tip": "这笔支出还没选归属，先在“{groupName}”里选一个再保存吧~",
   "settlement-self-expense": "支出（自己）",
   "settlement-shared-expense": "支出（家）",
   "settlement-other-expense": "支出（对方）",
