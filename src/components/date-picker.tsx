@@ -17,6 +17,10 @@ type Props = {
     type?: "datetime-local" | "date";
     /** 切换日期时不将时间重置为00:00 */
     fixedTime?: boolean;
+    closeOnDateSelect?: boolean;
+    popoverSide?: "top" | "right" | "bottom" | "left";
+    popoverAlign?: "start" | "center" | "end";
+    popoverSideOffset?: number;
 };
 
 const Hours = Array.from({ length: 24 }, (_, i) => ({
@@ -74,6 +78,10 @@ export function DatePicker({
     onBlur,
     fixedTime,
     type = "datetime-local",
+    closeOnDateSelect = false,
+    popoverSide = "bottom",
+    popoverAlign = "center",
+    popoverSideOffset = -36,
 }: Props) {
     const t = useIntl();
 
@@ -106,9 +114,9 @@ export function DatePicker({
             </PopoverTrigger>
             <PopoverContent
                 className="w-auto overflow-hidden p-3 flex flex-col gap-2"
-                align="center"
-                side="bottom"
-                sideOffset={-36}
+                align={popoverAlign}
+                side={popoverSide}
+                sideOffset={popoverSideOffset}
             >
                 <Calendar
                     mode="single"
@@ -123,6 +131,9 @@ export function DatePicker({
                                 x.setMinutes(current.minute());
                             }
                             onChange?.(x.getTime());
+                            if (closeOnDateSelect) {
+                                setOpen(false);
+                            }
                         }
                     }}
                 />

@@ -513,6 +513,10 @@ export default function EditorForm({
                             <div className="rounded-full transition-all hover:(bg-stone-700) active:(bg-stone-500)">
                                 <DatePicker
                                     fixedTime
+                                    closeOnDateSelect
+                                    popoverSide="top"
+                                    popoverAlign="start"
+                                    popoverSideOffset={8}
                                     value={billState.time}
                                     onChange={(time) => {
                                         setBillState((prev) => {
