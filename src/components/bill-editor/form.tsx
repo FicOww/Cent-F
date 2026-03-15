@@ -8,13 +8,16 @@ import { useWheelScrollX } from "@/hooks/use-wheel-scroll";
 import PopupLayout from "@/layouts/popup-layout";
 import { amountToNumber, numberToAmount } from "@/ledger/bill";
 import { ExpenseBillCategories, IncomeBillCategories } from "@/ledger/category";
+import { SETTLEMENT_GROUP_NAME } from "@/ledger/settlement";
 import type { Bill } from "@/ledger/type";
 import { categoriesGridClassName } from "@/ledger/utils";
 import { useIntl, useLocale } from "@/locale";
-import type { EditBill } from "@/store/ledger";
+import { useLedgerStore, type EditBill } from "@/store/ledger";
 import { usePreferenceStore } from "@/store/preference";
+import { useUserStore } from "@/store/user";
 import { cn } from "@/utils";
 import { getPredictNow } from "@/utils/predict";
+import { getEffectiveSettlementConfig } from "@/utils/tag-config";
 import { showTagList } from "../bill-tag";
 import { showCategoryList } from "../category";
 import { CategoryItem } from "../category/item";
@@ -24,6 +27,7 @@ import { FORMAT_IMAGE_SUPPORTED, showFilePicker } from "../file-picker";
 import SmartImage from "../image";
 import IOSUnscrolledInput from "../input";
 import Calculator from "../keyboard";
+import modal from "../modal";
 import CurrentLocation from "../simple-location";
 import Tag from "../tag";
 import {
@@ -105,6 +109,8 @@ export default function EditorForm({
     });
 
     const { grouped } = useTag();
+    const userId = useUserStore((state) => state.id);
+    const meta = useLedgerStore((state) => state.infos?.meta);
 
     const categories = billState.type === "expense" ? expenses : incomes;
 
@@ -120,11 +126,57 @@ export default function EditorForm({
         return categories.find((c) => c.id === selected?.parent)?.children;
     }, [billState.categoryId, categories]);
 
-    const toConfirm = useCallback(() => {
+    const attributionTagIds = useMemo(() => {
+        const config = getEffectiveSettlementConfig(meta, userId);
+        if (
+            !config?.tagGroupId ||
+            !config.homeTagId ||
+            !config.memberATagId ||
+            !config.memberBTagId
+        ) {
+            return [];
+        }
+
+        const targetGroup = grouped.find(
+            (group) => group.id === config.tagGroupId,
+        );
+        if (!targetGroup) {
+            return [];
+        }
+
+        const candidateIds = [
+            config.homeTagId,
+            config.memberATagId,
+            config.memberBTagId,
+        ];
+
+        return candidateIds.filter((tagId) =>
+            targetGroup.tags.some((tag) => tag.id === tagId),
+        );
+    }, [grouped, meta, userId]);
+
+    const toConfirm = useCallback(async () => {
+        if (billState.type === "expense" && attributionTagIds.length === 3) {
+            const selectedAttributionCount =
+                billState.tagIds?.filter((tagId) =>
+                    attributionTagIds.includes(tagId),
+                ).length ?? 0;
+
+            if (selectedAttributionCount !== 1) {
+                await modal.prompt({
+                    title: t("settlement-attribution-required-tip", {
+                        groupName: SETTLEMENT_GROUP_NAME,
+                    }),
+                    cancellable: false,
+                });
+                return;
+            }
+        }
+
         onConfirm?.({
             ...billState,
         });
-    }, [onConfirm, billState]);
+    }, [attributionTagIds, billState, onConfirm, t]);
 
     const chooseImage = async () => {
         const [file] = await showFilePicker({ accept: FORMAT_IMAGE_SUPPORTED });
