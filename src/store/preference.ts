@@ -33,6 +33,13 @@ type State = {
         encryptPrivateKey?: string;
         encryptKey?: string;
     };
+    statDateStates?: Record<
+        string,
+        {
+            sliceId?: string;
+            customRange?: [number | undefined, number | undefined];
+        }
+    >;
 };
 type Store = State;
 
@@ -108,4 +115,23 @@ export const getEnableHashMode = () => {
     const disabled =
         usePreferenceStore.getState().disableHashModeOnAndroidStandaloneMode;
     return !disabled;
+};
+
+export const getStatDateState = (key: string) => {
+    return usePreferenceStore.getState().statDateStates?.[key];
+};
+
+export const setStatDateState = (
+    key: string,
+    value: {
+        sliceId?: string;
+        customRange?: [number | undefined, number | undefined];
+    },
+) => {
+    usePreferenceStore.setState((prev) => ({
+        statDateStates: {
+            ...(prev.statDateStates ?? {}),
+            [key]: value,
+        },
+    }));
 };
