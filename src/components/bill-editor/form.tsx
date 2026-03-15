@@ -39,7 +39,10 @@ import {
 } from "../ui/select";
 import { goAddBill } from ".";
 import { RemarkHint } from "./remark";
-import TagGroupSelector from "./tag-group";
+import {
+    AttributionTagGroupSelector,
+    default as TagGroupSelector,
+} from "./tag-group";
 
 const ADD_AGAIN_REOPEN_DELAY_MS = 450;
 
@@ -126,34 +129,42 @@ export default function EditorForm({
         return categories.find((c) => c.id === selected?.parent)?.children;
     }, [billState.categoryId, categories]);
 
+    const settlementConfig = useMemo(
+        () => getEffectiveSettlementConfig(meta, userId),
+        [meta, userId],
+    );
+
+    const attributionGroup = useMemo(() => {
+        if (!settlementConfig?.tagGroupId) {
+            return undefined;
+        }
+        return grouped.find((group) => group.id === settlementConfig.tagGroupId);
+    }, [grouped, settlementConfig?.tagGroupId]);
+
     const attributionTagIds = useMemo(() => {
-        const config = getEffectiveSettlementConfig(meta, userId);
         if (
-            !config?.tagGroupId ||
-            !config.homeTagId ||
-            !config.memberATagId ||
-            !config.memberBTagId
+            !settlementConfig?.homeTagId ||
+            !settlementConfig?.memberATagId ||
+            !settlementConfig?.memberBTagId ||
+            !attributionGroup
         ) {
             return [];
         }
 
-        const targetGroup = grouped.find(
-            (group) => group.id === config.tagGroupId,
-        );
-        if (!targetGroup) {
-            return [];
-        }
-
         const candidateIds = [
-            config.homeTagId,
-            config.memberATagId,
-            config.memberBTagId,
+            settlementConfig.homeTagId,
+            settlementConfig.memberATagId,
+            settlementConfig.memberBTagId,
         ];
 
         return candidateIds.filter((tagId) =>
-            targetGroup.tags.some((tag) => tag.id === tagId),
+            attributionGroup.tags.some((tag) => tag.id === tagId),
         );
-    }, [grouped, meta, userId]);
+    }, [attributionGroup, settlementConfig]);
+
+    const otherTagGroups = useMemo(() => {
+        return grouped.filter((group) => group.id !== attributionGroup?.id);
+    }, [attributionGroup?.id, grouped]);
 
     const toConfirm = useCallback(async () => {
         if (billState.type === "expense" && attributionTagIds.length === 3) {
@@ -267,6 +278,7 @@ export default function EditorForm({
 
     const tagSelectorRef = useRef<HTMLDivElement>(null);
     useWheelScrollX(tagSelectorRef);
+
     return (
         <Calculator.Root
             multiplyKey={multiplyKey}
@@ -464,7 +476,7 @@ export default function EditorForm({
                     className="w-full h-[40px] flex-shrink-0 flex-grow-0 flex gap-1 py-1 items-center overflow-x-auto px-2 text-sm font-medium scrollbar-hidden"
                 >
                     <TagGroupSelector
-                        isCreate={isCreate}
+                        groups={otherTagGroups}
                         selectedTags={billState.tagIds}
                         onSelectChange={(newTagIds, extra) => {
                             setBillState((prev) => ({
@@ -497,6 +509,22 @@ export default function EditorForm({
                         "keyboard-field flex gap-2 flex-col justify-start bg-stone-900 sm:rounded-b-md text-[white] p-2 pb-[max(env(safe-area-inset-bottom),8px)]",
                     )}
                 >
+                    {billState.type === "expense" && attributionGroup && (
+                        <AttributionTagGroupSelector
+                            compact
+                            group={attributionGroup}
+                            selectedTags={billState.tagIds}
+                            onSelectChange={(newTagIds, extra) => {
+                                setBillState((prev) => ({
+                                    ...prev,
+                                    tagIds: newTagIds,
+                                }));
+                                if (extra?.preferCurrency) {
+                                    changeCurrency(extra.preferCurrency);
+                                }
+                            }}
+                        />
+                    )}
                     <div className="flex justify-between items-center">
                         <div className="flex gap-2 items-center h-10">
                             <div className="flex items-center h-full">

@@ -36,6 +36,7 @@ import { usePreferenceStore } from "@/store/preference";
 import { useUserStore } from "@/store/user";
 import { cn } from "@/utils";
 import { filterOrderedBillListByTimeRange } from "@/utils/filter";
+import { HIGH_CONTRAST_SELECTED_CLASS } from "@/utils/selected-style";
 import { denseDate } from "@/utils/time";
 
 let ledgerAnimationShows = false;
@@ -511,7 +512,7 @@ function MonthPicker({
                                     className={cn(
                                     "h-10 rounded-xl border text-sm transition-colors tabular-nums",
                                         checked
-                                            ? "border-stone-900 bg-stone-900 !text-white dark:bg-stone-100 dark:!text-stone-900 dark:border-stone-100"
+                                            ? HIGH_CONTRAST_SELECTED_CLASS
                                             : "border-border text-foreground/80 hover:bg-accent hover:text-accent-foreground",
                                     )}
                                     onClick={() => {
@@ -539,7 +540,7 @@ function MonthPicker({
                                     className={cn(
                                     "h-10 rounded-xl border text-sm transition-colors",
                                         checked
-                                            ? "border-stone-900 bg-stone-900 !text-white dark:bg-stone-100 dark:!text-stone-900 dark:border-stone-100"
+                                            ? HIGH_CONTRAST_SELECTED_CLASS
                                             : "border-border text-foreground/80 hover:bg-accent hover:text-accent-foreground",
                                     )}
                                     onClick={() => {
