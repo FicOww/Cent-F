@@ -15,6 +15,7 @@ import { showBookGuide } from "@/components/book/util";
 import BudgetCard from "@/components/budget/card";
 import { HintTooltip } from "@/components/hint";
 import { PaginationIndicator } from "@/components/indicator";
+import CreatorFilterBar from "@/components/ledger/creator-filter-bar";
 import Ledger from "@/components/ledger";
 import Loading from "@/components/loading";
 import { Promotion } from "@/components/promotion";
@@ -56,15 +57,27 @@ export default function Page() {
                 : "icon-[mdi--cloud-remove-outline] text-red-600";
 
     const [currentDate, setCurrentDate] = useState(dayjs());
+    const [selectedCreatorId, setSelectedCreatorId] = useState<
+        string | number | undefined
+    >();
     const ledgerRef = useRef<any>(null);
 
+    const visibleBills = useMemo(() => {
+        if (selectedCreatorId === undefined) {
+            return bills;
+        }
+        return bills.filter(
+            (bill) => `${bill.creatorId}` === `${selectedCreatorId}`,
+        );
+    }, [bills, selectedCreatorId]);
+
     const currentDateBills = useMemo(() => {
-        const today = filterOrderedBillListByTimeRange(bills, [
+        const today = filterOrderedBillListByTimeRange(visibleBills, [
             currentDate.startOf("day"),
             currentDate.endOf("day"),
         ]);
         return today;
-    }, [bills, currentDate]);
+    }, [visibleBills, currentDate]);
 
     const currentDateAmount = useMemo(() => {
         return amountToNumber(
@@ -98,7 +111,7 @@ export default function Page() {
     const onDateClick = useCallback(
         (date: dayjs.Dayjs) => {
             setCurrentDate(date);
-            const index = bills.findIndex((bill) => {
+            const index = visibleBills.findIndex((bill) => {
                 const billDate = dayjs.unix(bill.time / 1000);
                 return billDate.isSame(date, "day");
             });
@@ -106,7 +119,7 @@ export default function Page() {
                 ledgerRef.current?.scrollToIndex(index);
             }
         },
-        [bills],
+        [visibleBills],
     );
 
     const onItemShow = useCallback((index: number) => {
@@ -127,6 +140,19 @@ export default function Page() {
     useEffect(() => {
         ledgerAnimationShows = true;
     }, []);
+
+    useEffect(() => {
+        if (visibleBills.length === 0) {
+            return;
+        }
+        const hasCurrentDateBills = visibleBills.some((bill) =>
+            dayjs.unix(bill.time / 1000).isSame(currentDate, "day"),
+        );
+        if (!hasCurrentDateBills) {
+            setCurrentDate(dayjs.unix(visibleBills[0].time / 1000));
+        }
+    }, [currentDate, visibleBills]);
+
     return (
         <div className="w-full h-full p-2 flex flex-col overflow-hidden page-show">
             <div className="flex flex-wrap flex-col w-full gap-2">
@@ -151,6 +177,10 @@ export default function Page() {
                         </button>
                     )}
                 </div>
+                <CreatorFilterBar
+                    value={selectedCreatorId}
+                    onValueChange={setSelectedCreatorId}
+                />
                 <Promotion />
                 <div className="w-full flex flex-col gap-1">
                     <div
@@ -215,11 +245,11 @@ export default function Page() {
             </div>
             <div className="flex-1 translate-0 pb-[10px] overflow-hidden">
                 <div className="w-full h-full">
-                    {bills.length > 0 ? (
+                    {visibleBills.length > 0 ? (
                         <Ledger
                             ref={ledgerRef}
-                            bills={bills}
-                            className={cn(bills.length > 0 && "relative")}
+                            bills={visibleBills}
+                            className={cn(visibleBills.length > 0 && "relative")}
                             enableDivideAsOrdered
                             showTime
                             onItemShow={onItemShow}
