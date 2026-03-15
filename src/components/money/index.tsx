@@ -36,7 +36,7 @@ export default function Money({
 
             {/* 小数部分 - 仅在存在时展示 */}
             {decimalPart && (
-                <div className="decimal text-[0.8em] opacity-70">
+                <div className="decimal text-[0.8em] opacity-80 dark:opacity-100">
                     .{decimalPart}
                 </div>
             )}
