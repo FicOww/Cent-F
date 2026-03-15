@@ -3,12 +3,12 @@
 import {
     type ReactNode,
     useCallback,
-    useEffect,
-    useRef,
+    useMemo,
     useState,
 } from "react";
 import { type BillTagGroupDetail, useTag } from "@/hooks/use-tag";
 import { cn } from "@/utils";
+import { HIGH_CONTRAST_SELECTED_CLASS } from "@/utils/selected-style";
 import {
     DropdownMenu,
     DropdownMenuCheckboxItem,
@@ -169,13 +169,17 @@ function TagGroup({
 export default function TagGroupSelector({
     selectedTags,
     onSelectChange: onChange,
-    isCreate,
+    groups,
 }: {
     selectedTags?: string[];
     onSelectChange: (v: string[], extra?: { preferCurrency?: string }) => void;
-    isCreate: boolean;
+    groups?: BillTagGroupDetail[];
 }) {
     const { grouped } = useTag();
+    const targetGroups = useMemo(
+        () => (groups ?? grouped).filter((group) => group.tags.length > 0),
+        [grouped, groups],
+    );
 
     // 统一去重
     const onSelectChange: typeof onChange = useCallback(
@@ -183,40 +187,99 @@ export default function TagGroupSelector({
         [onChange],
     );
 
-    // 进入记账页面后自动选中标签
-    const autoSelect = () => {
-        if (selectedTags === undefined && isCreate) {
-            const defaultTags = grouped
-                .filter((v) => v.required)
-                .map((v) => v.tags?.[0])
-                .filter((v) => v !== undefined);
-            const preferCurrency = defaultTags.findLast(
-                (v) => v.preferCurrency !== undefined,
-            )?.preferCurrency;
-            onSelectChange(
-                defaultTags.map((v) => v.id),
-                preferCurrency ? { preferCurrency } : undefined,
-            );
-        }
-    };
-    const autoSelectRef = useRef(autoSelect);
-    autoSelectRef.current = autoSelect;
-    useEffect(() => {
-        autoSelectRef.current();
-    }, []);
-
     return (
         <>
-            {grouped
-                .filter((group) => group.tags.length > 0)
-                .map((group) => (
-                    <TagGroup
-                        key={group.id}
-                        group={group}
-                        selected={selectedTags ?? []}
-                        onSelectChange={onSelectChange}
-                    ></TagGroup>
-                ))}
+            {targetGroups.map((group) => (
+                <TagGroup
+                    key={group.id}
+                    group={group}
+                    selected={selectedTags ?? []}
+                    onSelectChange={onSelectChange}
+                ></TagGroup>
+            ))}
         </>
+    );
+}
+
+export function AttributionTagGroupSelector({
+    group,
+    selectedTags,
+    onSelectChange,
+    compact,
+}: {
+    group: BillTagGroupDetail;
+    selectedTags?: string[];
+    onSelectChange: (v: string[], extra?: { preferCurrency?: string }) => void;
+    compact?: boolean;
+}) {
+    const selected = selectedTags ?? [];
+    const selectedId = group.tags.find((tag) => selected.includes(tag.id))?.id;
+
+    return (
+        <div
+            className={cn(
+                "w-full rounded-xl border border-border bg-background/70 shadow-sm",
+                compact ? "px-3 py-2 flex items-center gap-3" : "px-3 py-3 flex flex-col gap-3",
+            )}
+        >
+            <div
+                className={cn(
+                    "flex items-center justify-between gap-2",
+                    compact && "w-12 flex-shrink-0 justify-start",
+                )}
+            >
+                <div className="text-sm font-medium">{group.name}</div>
+            </div>
+            <div
+                className={cn(
+                    compact ? "flex-1 grid grid-cols-3 gap-2" : "grid grid-cols-3 gap-2",
+                )}
+            >
+                {group.tags.map((tag) => {
+                    const checked = selectedId === tag.id;
+                    return (
+                        <button
+                            key={tag.id}
+                            type="button"
+                            className={cn(
+                                "rounded-xl border text-sm transition-colors",
+                                compact ? "h-9" : "h-10",
+                                checked
+                                    ? HIGH_CONTRAST_SELECTED_CLASS
+                                    : "border-border text-foreground/80 hover:bg-accent hover:text-accent-foreground",
+                            )}
+                            onClick={() => {
+                                if (checked && !group.required) {
+                                    onSelectChange(
+                                        selected.filter(
+                                            (value) =>
+                                                !group.tagIds?.includes(value),
+                                        ),
+                                    );
+                                    return;
+                                }
+                                onSelectChange(
+                                    [
+                                        ...selected.filter(
+                                            (value) =>
+                                                !group.tagIds?.includes(value),
+                                        ),
+                                        tag.id,
+                                    ],
+                                    tag.preferCurrency
+                                        ? {
+                                              preferCurrency:
+                                                  tag.preferCurrency,
+                                          }
+                                        : undefined,
+                                );
+                            }}
+                        >
+                            {tag.name}
+                        </button>
+                    );
+                })}
+            </div>
+        </div>
     );
 }
