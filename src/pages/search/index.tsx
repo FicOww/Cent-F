@@ -63,6 +63,14 @@ export default function Page() {
     const { baseCurrency } = useCurrency();
     const { categories } = useCategory();
     const { state } = useLocation();
+    const returnTo = (state as
+        | {
+              returnTo?: {
+                  pathname: string;
+                  search?: string;
+              };
+          }
+        | undefined)?.returnTo;
     const [form, setForm] = useState<BillFilter>(() => {
         const filter = state?.filter as BillFilter;
         if (filter) {
@@ -224,6 +232,23 @@ export default function Page() {
     return (
         <div className="w-full h-full p-2 flex justify-center overflow-hidden page-show">
             <div className="h-full w-full px-2 max-w-[600px] flex flex-col">
+                {returnTo && (
+                    <div className="w-full flex justify-start pt-2">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                                navigate({
+                                    pathname: returnTo.pathname,
+                                    search: returnTo.search,
+                                });
+                            }}
+                        >
+                            <i className="icon-[mdi--arrow-left]"></i>
+                            {t("back")}
+                        </Button>
+                    </div>
+                )}
                 <div className="search w-full flex justify-center pt-4">
                     <div className="w-full h-10 shadow-md rounded-sm flex items-center px-4 focus-within:(shadow-lg)">
                         <div className="flex-1">

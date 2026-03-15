@@ -1,7 +1,7 @@
 import dayjs from "dayjs";
 import { Switch } from "radix-ui";
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 import { useShallow } from "zustand/shallow";
 import { StorageDeferredAPI } from "@/api/storage";
 import type { AnalysisResult } from "@/api/storage/analysis";
@@ -17,7 +17,15 @@ import { AnalysisCloud } from "@/components/stat/analysic-cloud";
 import { AnalysisDetail } from "@/components/stat/analysis-detail";
 import AnalysisMap from "@/components/stat/analysis-map";
 import { useChartPart } from "@/components/stat/chart-part";
-import { DateSliced, useDateSliced } from "@/components/stat/date-slice";
+import {
+    buildDateSlices,
+    DateSliced,
+    getDefaultSliceId,
+    getViewTypeFromSliceId,
+    hasSliceId,
+    resolveSliceRange,
+    type DateSliceState,
+} from "@/components/stat/date-slice";
 import {
     type FocusType,
     FocusTypeSelector,
@@ -37,11 +45,120 @@ import type { Bill } from "@/ledger/type";
 import { useIntl } from "@/locale";
 import { useBookStore } from "@/store/book";
 import { useLedgerStore } from "@/store/ledger";
+import {
+    getStatDateState,
+    setStatDateState,
+} from "@/store/preference";
 import { cn } from "@/utils";
+
+type StatDimension = "category" | "user";
+
+function getStatPath(filterViewId: string) {
+    return filterViewId === DefaultFilterViewId
+        ? "/stat"
+        : `/stat/${filterViewId}`;
+}
+
+function getDefaultCustomRange(range: [number, number]) {
+    const startOfMonth = dayjs(range[1]).startOf("month").valueOf();
+    return [Math.max(range[0], startOfMonth), range[1]] as [number, number];
+}
+
+function normalizeDateState(
+    state: DateSliceState | undefined,
+    viewSlices: ReturnType<typeof buildDateSlices>,
+    fullRange: [number, number],
+): DateSliceState {
+    if (!state) {
+        return {
+            sliceId: getDefaultSliceId(viewSlices),
+            customRange: getDefaultCustomRange(fullRange),
+        };
+    }
+    if (!state?.sliceId) {
+        return {
+            sliceId: undefined,
+            customRange: state?.customRange ?? getDefaultCustomRange(fullRange),
+        };
+    }
+    if (hasSliceId(state.sliceId, viewSlices)) {
+        return state;
+    }
+    return {
+        sliceId: getDefaultSliceId(viewSlices),
+        customRange: state.customRange,
+    };
+}
+
+function getDateStateFromQuery(
+    searchParams: URLSearchParams,
+    viewSlices: ReturnType<typeof buildDateSlices>,
+    fullRange: [number, number],
+    fallback: DateSliceState | undefined,
+) {
+    const view = searchParams.get("view");
+    if (view === "custom") {
+        const start = searchParams.get("start");
+        const end = searchParams.get("end");
+        return normalizeDateState(
+            {
+                sliceId: undefined,
+                customRange:
+                    start && end
+                        ? [Number(start), Number(end)]
+                        : fallback?.customRange,
+            },
+            viewSlices,
+            fullRange,
+        );
+    }
+    if (view) {
+        const slice = searchParams.get("slice");
+        if (slice) {
+            return normalizeDateState(
+                {
+                    sliceId: `${view}|${slice}`,
+                    customRange: fallback?.customRange,
+                },
+                viewSlices,
+                fullRange,
+            );
+        }
+    }
+    return normalizeDateState(fallback, viewSlices, fullRange);
+}
+
+function buildStatSearchParams({
+    dateState,
+    focusType,
+    dimension,
+}: {
+    dateState: DateSliceState;
+    focusType: FocusType;
+    dimension: StatDimension;
+}) {
+    const params = new URLSearchParams();
+    const viewType = getViewTypeFromSliceId(dateState.sliceId);
+    params.set("view", viewType);
+    if (dateState.sliceId && viewType !== "custom") {
+        params.set("slice", dateState.sliceId.split("|")[1] ?? "");
+    } else {
+        if (dateState.customRange?.[0]) {
+            params.set("start", String(dateState.customRange[0]));
+        }
+        if (dateState.customRange?.[1]) {
+            params.set("end", String(dateState.customRange[1]));
+        }
+    }
+    params.set("focus", focusType);
+    params.set("dimension", dimension);
+    return params.toString();
+}
 
 export default function Page() {
     const t = useIntl();
     const { id } = useParams();
+    const [searchParams] = useSearchParams();
 
     const { bills } = useLedgerStore();
     const endTime = useMemo(() => Date.now(), []); //bills[0]?.time ?? dayjs();
@@ -65,13 +182,9 @@ export default function Page() {
         ];
     }, [t, customFilters]);
 
-    const [filterViewId, setFilterViewId] = useState(
-        id ?? allFilterViews[0].id,
-    );
-
-    const selectedFilterView = allFilterViews.find(
-        (v) => v.id === filterViewId,
-    );
+    const filterViewId =
+        allFilterViews.find((v) => v.id === id)?.id ?? allFilterViews[0].id;
+    const selectedFilterView = allFilterViews.find((v) => v.id === filterViewId);
     const selectedFilter = selectedFilterView?.filter;
 
     const fullRange = [
@@ -79,15 +192,29 @@ export default function Page() {
         selectedFilter?.end ?? endTime,
     ] as [number, number];
 
-    const {
-        sliceRange,
-        viewType,
-        props: dateSlicedProps,
-        setSliceId,
-    } = useDateSliced({
-        range: fullRange,
-        selectCustomSliceWhenInitial: Boolean(id),
-    });
+    const viewSlices = useMemo(
+        () => buildDateSlices(fullRange, t),
+        [fullRange, t],
+    );
+    const cachedDateState = useMemo(
+        () => getStatDateState(filterViewId),
+        [filterViewId],
+    );
+    const dateState = useMemo(
+        () =>
+            getDateStateFromQuery(
+                searchParams,
+                viewSlices,
+                fullRange,
+                cachedDateState,
+            ),
+        [cachedDateState, fullRange, searchParams, viewSlices],
+    );
+    const sliceRange = useMemo(
+        () => resolveSliceRange(dateState, viewSlices),
+        [dateState, viewSlices],
+    );
+    const viewType = getViewTypeFromSliceId(dateState.sliceId);
     const realRange = useMemo(
         () => [
             sliceRange?.[0] ?? selectedFilter?.start ?? startTime,
@@ -103,6 +230,49 @@ export default function Page() {
     );
 
     const navigate = useNavigate();
+    const focusType = (searchParams.get("focus") ?? "expense") as FocusType;
+    const dimension = (searchParams.get("dimension") ?? "category") as StatDimension;
+    const updateStatRoute = ({
+        nextFilterViewId = filterViewId,
+        nextDateState = dateState,
+        nextFocusType = focusType,
+        nextDimension = dimension,
+        replace = false,
+    }: {
+        nextFilterViewId?: string;
+        nextDateState?: DateSliceState;
+        nextFocusType?: FocusType;
+        nextDimension?: StatDimension;
+        replace?: boolean;
+    }) => {
+        navigate(
+            `${getStatPath(nextFilterViewId)}?${buildStatSearchParams({
+                dateState: nextDateState,
+                focusType: nextFocusType,
+                dimension: nextDimension,
+            })}`,
+            { replace },
+        );
+    };
+
+    useEffect(() => {
+        setStatDateState(filterViewId, dateState);
+    }, [dateState, filterViewId]);
+
+    useEffect(() => {
+        const nextSearch = buildStatSearchParams({
+            dateState,
+            focusType,
+            dimension,
+        });
+        if (searchParams.toString() === nextSearch) {
+            return;
+        }
+        navigate(`${getStatPath(filterViewId)}?${nextSearch}`, {
+            replace: true,
+        });
+    }, [dateState, dimension, filterViewId, focusType, navigate, searchParams]);
+
     const seeDetails = (append?: Partial<BillFilter>) => {
         navigate("/search", {
             state: {
@@ -111,6 +281,14 @@ export default function Page() {
                     start: realRange[0],
                     end: realRange[1],
                     ...append,
+                },
+                returnTo: {
+                    pathname: getStatPath(filterViewId),
+                    search: `?${buildStatSearchParams({
+                        dateState,
+                        focusType,
+                        dimension,
+                    })}`,
                 },
             },
         });
@@ -134,9 +312,6 @@ export default function Page() {
             setFiltered(result);
         });
     }, [selectedFilter, realRange[0], realRange[1]]);
-
-    const [focusType, setFocusType] = useState<FocusType>("expense");
-    const [dimension, setDimension] = useState<"category" | "user">("category");
 
     const { dataSources, Part, setSelectedCategoryId } = useChartPart({
         viewType,
@@ -224,7 +399,23 @@ export default function Page() {
         });
         if (action === "delete") {
             await updateFilter(id);
-            setFilterViewId(allFilterViews[0].id);
+            updateStatRoute({
+                nextFilterViewId: allFilterViews[0].id,
+                nextDateState: normalizeDateState(
+                    getStatDateState(allFilterViews[0].id),
+                    buildDateSlices(
+                        [
+                            allFilterViews[0].filter?.start ?? startTime,
+                            allFilterViews[0].filter?.end ?? endTime,
+                        ],
+                        t,
+                    ),
+                    [
+                        allFilterViews[0].filter?.start ?? startTime,
+                        allFilterViews[0].filter?.end ?? endTime,
+                    ],
+                ),
+            });
             return;
         }
         await updateFilter(id, {
@@ -257,8 +448,16 @@ export default function Page() {
         if (!id) {
             return;
         }
-        setSliceId(undefined);
-        setFilterViewId(id);
+        const nextFullRange = [startTime, endTime] as [number, number];
+        const nextViewSlices = buildDateSlices(nextFullRange, t);
+        updateStatRoute({
+            nextFilterViewId: id,
+            nextDateState: normalizeDateState(
+                getStatDateState(id),
+                nextViewSlices,
+                nextFullRange,
+            ),
+        });
     };
 
     const { allCurrencies, baseCurrency } = useCurrency();
@@ -298,8 +497,23 @@ export default function Page() {
                                         )}
                                         variant="ghost"
                                         onClick={() => {
-                                            setSliceId(undefined);
-                                            setFilterViewId(filter.id);
+                                            const nextFullRange = [
+                                                filter.filter?.start ?? startTime,
+                                                filter.filter?.end ?? endTime,
+                                            ] as [number, number];
+                                            const nextViewSlices =
+                                                buildDateSlices(nextFullRange, t);
+                                            updateStatRoute({
+                                                nextFilterViewId: filter.id,
+                                                nextDateState:
+                                                    normalizeDateState(
+                                                        getStatDateState(
+                                                            filter.id,
+                                                        ),
+                                                        nextViewSlices,
+                                                        nextFullRange,
+                                                    ),
+                                            });
                                         }}
                                     >
                                         {displayCurrency?.symbol}
@@ -327,17 +541,42 @@ export default function Page() {
                     </div>
                 </div>
                 <DateSliced
-                    {...dateSlicedProps}
+                    viewSlices={viewSlices}
+                    value={dateState.sliceId}
+                    custom={dateState.customRange}
+                    onValueChange={(value) => {
+                        updateStatRoute({
+                            nextDateState: normalizeDateState(
+                                {
+                                    sliceId: value,
+                                    customRange:
+                                        dateState.customRange ??
+                                        getDefaultCustomRange(fullRange),
+                                },
+                                viewSlices,
+                                fullRange,
+                            ),
+                        });
+                    }}
+                    onCustomValueChange={(value) => {
+                        updateStatRoute({
+                            nextDateState: {
+                                sliceId: undefined,
+                                customRange: value,
+                            },
+                        });
+                    }}
                     onClickSettings={toChangeFilter}
                 >
                     <div className="flex items-center pr-2 relative">
                         <Switch.Root
                             checked={dimension === "user"}
                             onCheckedChange={() => {
-                                setDimension((v) => {
-                                    return v === "category"
-                                        ? "user"
-                                        : "category";
+                                updateStatRoute({
+                                    nextDimension:
+                                        dimension === "category"
+                                            ? "user"
+                                            : "category",
                                 });
                             }}
                             className="relative z-[0] h-[29px] w-[54px] cursor-pointer rounded-sm bg-blackA6 outline-none bg-stone-300 group"
@@ -354,7 +593,9 @@ export default function Page() {
             <FocusTypeSelector
                 value={focusType}
                 onValueChange={(v) => {
-                    setFocusType(v);
+                    updateStatRoute({
+                        nextFocusType: v,
+                    });
                     setSelectedCategoryId(undefined);
                 }}
                 money={totalMoneys}

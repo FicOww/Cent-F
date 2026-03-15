@@ -30,6 +30,7 @@ const StaticViews = [
 export type ViewType = (typeof StaticViews)[number]["id"];
 
 type DateSlice = {
+    id: string;
     end: Dayjs;
     start: Dayjs;
     label: string;
@@ -48,8 +49,11 @@ function calcDateSlice(
                 unit: "week",
                 labelThis: t("this-week"),
                 labelLast: t("last-week"),
+                idThis: "this-week",
+                idLast: "last-week",
                 format: "MM-DD",
                 max: 4,
+                min: 2,
             } as const;
         }
         if (viewType === "monthly") {
@@ -57,7 +61,10 @@ function calcDateSlice(
                 unit: "month",
                 labelThis: t("this-month"),
                 labelLast: t("last-month"),
+                idThis: "this-month",
+                idLast: "last-month",
                 format: "YYYY-MM",
+                min: 2,
             } as const;
         }
         if (viewType === "yearly") {
@@ -65,18 +72,23 @@ function calcDateSlice(
                 unit: "year",
                 labelThis: t("this-year"),
                 labelLast: t("last-year"),
+                idThis: "this-year",
+                idLast: "last-year",
                 format: "YYYY",
+                min: 2,
             } as const;
         }
     })();
     if (labels === undefined) {
         return [];
     }
-    const { unit, labelThis, labelLast, format, max } = labels;
+    const { unit, labelThis, labelLast, idThis, idLast, format, max, min } =
+        labels;
     let end = END;
     let start = end.startOf(unit);
     const s: DateSlice[] = [];
     s.push({
+        id: idThis,
         label: labelThis,
         end: end,
         start: start,
@@ -87,8 +99,9 @@ function calcDateSlice(
         i += 1;
         end = start.subtract(1, "ms");
         start = end.startOf(unit);
-        if (end.isAfter(START)) {
+        if (end.isAfter(START) || i < (min ?? 0)) {
             s.push({
+                id: i === 1 ? idLast : start.format(format),
                 end,
                 start,
                 label: i === 1 ? labelLast : start.format(format),
@@ -139,7 +152,7 @@ export function DateSliced({
                                     return;
                                 }
                                 onValueChange?.(
-                                    `${view.id}|${viewSlices[view.id][0].label}`,
+                                    `${view.id}|${viewSlices[view.id][0].id}`,
                                 );
                             }}
                         >
@@ -161,17 +174,17 @@ export function DateSliced({
                     <div className="flex-1 flex gap-2 overflow-x-auto scrollbar-hidden">
                         {slices.map((slice) => (
                             <Button
-                                key={slice.label}
+                                key={slice.id}
                                 variant="ghost"
                                 size="sm"
                                 className={cn(
                                     "text-primary/40 px-2",
-                                    selectedSlice === slice.label &&
+                                    selectedSlice === slice.id &&
                                         "text-primary",
                                 )}
                                 onClick={() => {
                                     onValueChange?.(
-                                        `${selectedViewId}|${slice.label}`,
+                                        `${selectedViewId}|${slice.id}`,
                                     );
                                 }}
                             >
@@ -227,7 +240,7 @@ export function useDateSliced({
     const [sliceId, setSliceId] = useState<string | undefined>(
         selectCustomSliceWhenInitial
             ? undefined
-            : `monthly|${viewSlices.monthly[0].label}`,
+            : `monthly|${viewSlices.monthly[0].id}`,
     );
 
     const [customRange, setCustomRange] =
@@ -250,7 +263,7 @@ export function useDateSliced({
             return customRange;
         }
         const slice = viewSlices[viewType].find((v) =>
-            sliceId.endsWith(v.label),
+            sliceId.endsWith(v.id),
         );
         if (slice === undefined) {
             return customRange;
@@ -261,4 +274,65 @@ export function useDateSliced({
         ];
     })();
     return { sliceRange, viewType, props, setSliceId };
+}
+
+export type DateSliceState = {
+    sliceId?: string;
+    customRange?: [number | undefined, number | undefined];
+};
+
+export function buildDateSlices(
+    range: [number, number],
+    t: ReturnType<typeof useIntl>,
+) {
+    return Object.fromEntries(
+        StaticViews.map(({ id: viewType }) => {
+            return viewType === "custom"
+                ? undefined
+                : [viewType, calcDateSlice(range, viewType, t)];
+        }).filter((v) => v !== undefined),
+    ) as Record<ViewType, DateSlice[]>;
+}
+
+export function getDefaultSliceId(viewSlices: Record<ViewType, DateSlice[]>) {
+    return `monthly|${viewSlices.monthly[0]?.id ?? "this-month"}`;
+}
+
+export function getViewTypeFromSliceId(sliceId?: string): ViewType {
+    return (StaticViews.find((v) => sliceId?.startsWith(v.id))?.id ??
+        "custom") as ViewType;
+}
+
+export function resolveSliceRange(
+    state: DateSliceState,
+    viewSlices: Record<ViewType, DateSlice[]>,
+) {
+    const viewType = getViewTypeFromSliceId(state.sliceId);
+    if (!state.sliceId || viewType === "custom") {
+        return state.customRange;
+    }
+    const slice = viewSlices[viewType].find((v) =>
+        state.sliceId?.endsWith(v.id),
+    );
+    if (!slice) {
+        return state.customRange;
+    }
+    return [slice.start.unix() * 1000, slice.end.unix() * 1000] as [
+        number,
+        number,
+    ];
+}
+
+export function hasSliceId(
+    sliceId: string | undefined,
+    viewSlices: Record<ViewType, DateSlice[]>,
+) {
+    if (!sliceId) {
+        return false;
+    }
+    const viewType = getViewTypeFromSliceId(sliceId);
+    if (viewType === "custom") {
+        return false;
+    }
+    return viewSlices[viewType].some((slice) => sliceId.endsWith(slice.id));
 }
