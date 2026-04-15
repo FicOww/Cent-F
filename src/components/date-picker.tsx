@@ -3,6 +3,7 @@ import { ChevronDownIcon } from "lucide-react";
 import type React from "react";
 import { type ReactNode, useState } from "react";
 import { useIntl } from "@/locale";
+import { cn } from "@/utils";
 import { denseDate } from "@/utils/time";
 import { Calendar } from "./ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
@@ -21,6 +22,8 @@ type Props = {
     popoverSide?: "top" | "right" | "bottom" | "left";
     popoverAlign?: "start" | "center" | "end";
     popoverSideOffset?: number;
+    triggerClassName?: string;
+    displayClassName?: string;
 };
 
 const Hours = Array.from({ length: 24 }, (_, i) => ({
@@ -82,6 +85,8 @@ export function DatePicker({
     popoverSide = "bottom",
     popoverAlign = "center",
     popoverSideOffset = -36,
+    triggerClassName,
+    displayClassName,
 }: Props) {
     const t = useIntl();
 
@@ -104,13 +109,19 @@ export function DatePicker({
                 }
             }}
         >
-            <PopoverTrigger>
-                <div className="flex justify-center items-center relative cursor-pointer">
+            <PopoverTrigger asChild>
+                <button
+                    type="button"
+                    className={cn(
+                        "flex items-center justify-center relative cursor-pointer",
+                        triggerClassName,
+                    )}
+                >
                     {children}
-                    <div className="mx-2">
+                    <div className={cn("mx-2", displayClassName)}>
                         {display(value ? current : undefined)}
                     </div>
-                </div>
+                </button>
             </PopoverTrigger>
             <PopoverContent
                 className="w-auto overflow-hidden p-3 flex flex-col gap-2"

@@ -28,10 +28,7 @@ export default function Navigation() {
         if (theme === "light") {
             return false;
         }
-        return (
-            window.matchMedia &&
-            window.matchMedia("(prefers-color-scheme: dark)").matches
-        );
+        return window.matchMedia?.("(prefers-color-scheme: dark)").matches;
     })();
 
     return createPortal(
@@ -68,7 +65,11 @@ export default function Navigation() {
 
                 <ComplexAddButton
                     onClick={() => {
-                        goAddBill();
+                        void goAddBill()
+                            .then(() => {
+                                navigate("/");
+                            })
+                            .catch(() => undefined);
                         afterAddBillPromotion();
                     }}
                 />

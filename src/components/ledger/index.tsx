@@ -32,8 +32,11 @@ function Divider({
     );
 }
 
-type LedgerRef = {
-    scrollToIndex: (index: number) => void;
+export type LedgerRef = {
+    scrollToIndex: (
+        index: number,
+        align?: "auto" | "center" | "end" | "start",
+    ) => void;
 };
 
 type LedgerProps = {
@@ -74,8 +77,8 @@ const Ledger = forwardRef<LedgerRef, LedgerProps>(
         const parentRef = useRef<HTMLDivElement>(null);
 
         useImperativeHandle(ref, () => ({
-            scrollToIndex: (index: number) => {
-                rowVirtualizer.scrollToIndex(index);
+            scrollToIndex: (index: number, align = "auto") => {
+                rowVirtualizer.scrollToIndex(index, { align });
             },
         }));
 

@@ -1,6 +1,6 @@
+import dayjs from "dayjs";
 import { Switch } from "radix-ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
 import useCategory from "@/hooks/use-category";
 import { useCurrency } from "@/hooks/use-currency";
 import { useTag } from "@/hooks/use-tag";
@@ -11,8 +11,9 @@ import { ExpenseBillCategories, IncomeBillCategories } from "@/ledger/category";
 import { SETTLEMENT_GROUP_NAME } from "@/ledger/settlement";
 import type { Bill } from "@/ledger/type";
 import { categoriesGridClassName } from "@/ledger/utils";
-import { useIntl, useLocale } from "@/locale";
-import { useLedgerStore, type EditBill } from "@/store/ledger";
+import { useIntl } from "@/locale";
+import { useAddBillStore } from "@/store/add-bill";
+import { type EditBill, useLedgerStore } from "@/store/ledger";
 import { usePreferenceStore } from "@/store/preference";
 import { useUserStore } from "@/store/user";
 import { cn } from "@/utils";
@@ -29,14 +30,7 @@ import IOSUnscrolledInput from "../input";
 import Calculator from "../keyboard";
 import modal from "../modal";
 import CurrentLocation from "../simple-location";
-import Tag from "../tag";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "../ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "../ui/select";
 import { goAddBill } from ".";
 import { RemarkHint } from "./remark";
 import {
@@ -73,6 +67,7 @@ export default function EditorForm({
     const { incomes, expenses, categories: allCategories } = useCategory();
 
     const isCreate = edit === undefined;
+    const lastAddedTime = useAddBillStore((state) => state.lastAddedTime);
 
     const predictCategory = useMemo(() => {
         // 只有新增账单时才展示预测
@@ -102,7 +97,7 @@ export default function EditorForm({
         const init = {
             ...defaultBill,
             categoryId: predictCategory?.id ?? defaultBill.categoryId,
-            time: Date.now(),
+            time: lastAddedTime ?? Date.now(),
             ...edit,
         };
         if (edit?.currency?.target === baseCurrency.id) {
@@ -138,7 +133,9 @@ export default function EditorForm({
         if (!settlementConfig?.tagGroupId) {
             return undefined;
         }
-        return grouped.find((group) => group.id === settlementConfig.tagGroupId);
+        return grouped.find(
+            (group) => group.id === settlementConfig.tagGroupId,
+        );
     }, [grouped, settlementConfig?.tagGroupId]);
 
     const attributionTagIds = useMemo(() => {
@@ -166,6 +163,36 @@ export default function EditorForm({
         return grouped.filter((group) => group.id !== attributionGroup?.id);
     }, [attributionGroup?.id, grouped]);
 
+    const applyTimeChange = useCallback(
+        (time: number) => {
+            setBillState((prev) => {
+                if (!prev.currency) {
+                    return {
+                        ...prev,
+                        time,
+                    };
+                }
+                const { predict } = convert(
+                    amountToNumber(prev.currency?.amount ?? prev.amount),
+                    prev.currency.target,
+                    baseCurrency.id,
+                    time,
+                );
+                return {
+                    ...prev,
+                    time,
+                    amount: numberToAmount(predict),
+                    currency: {
+                        base: baseCurrency.id,
+                        target: prev.currency.target,
+                        amount: prev.currency?.amount ?? prev.amount,
+                    },
+                };
+            });
+        },
+        [baseCurrency.id, convert],
+    );
+
     const toConfirm = useCallback(async () => {
         if (billState.type === "expense" && attributionTagIds.length === 3) {
             const selectedAttributionCount =
@@ -180,13 +207,24 @@ export default function EditorForm({
                     }),
                     cancellable: false,
                 });
-                return;
+                return false;
+            }
+        }
+
+        if (amountToNumber(billState.amount) === 0) {
+            try {
+                await modal.prompt({
+                    title: t("bill-zero-amount-confirm"),
+                });
+            } catch {
+                return false;
             }
         }
 
         onConfirm?.({
             ...billState,
         });
+        return true;
     }, [attributionTagIds, billState, onConfirm, t]);
 
     const chooseImage = async () => {
@@ -313,10 +351,10 @@ export default function EditorForm({
                 className="h-full gap-2 pb-0 overflow-y-auto scrollbar-hidden"
                 onBack={goBack}
                 title={
-                    <div className="pl-[54px] w-full min-h-12 rounded-lg flex pt-2 pb-0 overflow-hidden scrollbar-hidden">
-                        <div className="text-white">
+                    <div className="pl-[54px] w-full min-h-12 rounded-xl flex pt-2 pb-0 overflow-hidden scrollbar-hidden">
+                        <div className="text-foreground">
                             <Switch.Root
-                                className="w-24 h-12 relative bg-stone-900 rounded-lg p-1 flex justify-center items-center"
+                                className="w-24 h-12 relative rounded-xl p-1 flex justify-center items-center border border-border bg-card shadow-sm"
                                 checked={billState.type === "income"}
                                 onCheckedChange={() => {
                                     setBillState((v) => ({
@@ -332,8 +370,8 @@ export default function EditorForm({
                                     }));
                                 }}
                             >
-                                <Switch.Thumb className="w-1/2 h-full flex justify-center items-center transition-all rounded-md bg-semantic-expense -translate-x-[22px] data-[state=checked]:bg-semantic-income data-[state=checked]:translate-x-[21px]">
-                                    <span className="text-[8px]">
+                                <Switch.Thumb className="w-1/2 h-full flex justify-center items-center transition-all rounded-lg text-white shadow-sm bg-semantic-expense -translate-x-[22px] data-[state=checked]:bg-semantic-income data-[state=checked]:translate-x-[21px]">
+                                    <span className="text-[8px] font-medium">
                                         {billState.type === "expense"
                                             ? t("expense")
                                             : t("income")}
@@ -341,7 +379,7 @@ export default function EditorForm({
                                 </Switch.Thumb>
                             </Switch.Root>
                         </div>
-                        <div className="flex-1 flex bg-stone-400 focus:outline rounded-lg ml-2 px-2 relative">
+                        <div className="flex-1 flex rounded-xl ml-2 px-3 relative border border-border bg-muted/70 shadow-sm text-foreground">
                             {quickCurrencies.length > 0 && (
                                 <Select
                                     value={targetCurrency?.id}
@@ -351,7 +389,7 @@ export default function EditorForm({
                                 >
                                     <div className="flex items-center">
                                         <SelectTrigger className="w-fit outline-none ring-none border-none shadow-none p-0 [&_svg]:hidden">
-                                            <div className="flex items-center font-semibold text-2xl text-white">
+                                            <div className="flex items-center font-semibold text-2xl text-foreground">
                                                 {targetCurrency?.symbol}
                                             </div>
                                         </SelectTrigger>
@@ -378,10 +416,10 @@ export default function EditorForm({
                                 onBlur={() => {
                                     setMonitorFocused(false);
                                 }}
-                                className="flex-1 flex flex-col justify-center items-end overflow-x-scroll outline-none"
+                                className="flex-1 min-w-0 flex flex-col justify-center items-end overflow-x-scroll outline-none"
                             >
                                 {billState.currency && (
-                                    <div className="absolute text-white text-[8px] top-0">
+                                    <div className="absolute text-foreground/60 text-[8px] top-0">
                                         ≈ {baseCurrency.symbol}{" "}
                                         {amountToNumber(billState.amount)}{" "}
                                         {baseCurrency.label}
@@ -389,7 +427,7 @@ export default function EditorForm({
                                 )}
                                 <Calculator.Value
                                     className={cn(
-                                        "text-white text-3xl font-semibold text-right bg-transparent after:inline-block after:content-['|'] after:opacity-0 after:font-thin after:translate-y-[-3px] ",
+                                        "text-foreground text-3xl font-semibold text-right bg-transparent after:inline-block after:content-['|'] after:opacity-0 after:font-thin after:translate-y-[-3px] ",
                                         monitorFocused &&
                                             "after:animate-caret-blink",
                                     )}
@@ -506,7 +544,7 @@ export default function EditorForm({
                 <div
                     className={cn(
                         "h-[calc(480px+160px*(var(--bekh,0.5)-0.5))] sm:h-[calc(380px+160px*(var(--bekh,0.5)-0.5))] min-h-[264px] max-h-[calc(100%-124px)]",
-                        "keyboard-field flex gap-2 flex-col justify-start bg-stone-900 sm:rounded-b-md text-[white] p-2 pb-[max(env(safe-area-inset-bottom),8px)]",
+                        "keyboard-field flex gap-2 flex-col justify-start border-t border-border bg-zinc-100/95 text-foreground p-2 pb-[max(env(safe-area-inset-bottom),8px)] sm:rounded-b-md dark:border-white/10 dark:bg-stone-900 dark:text-white",
                     )}
                 >
                     {billState.type === "expense" && attributionGroup && (
@@ -525,8 +563,8 @@ export default function EditorForm({
                             }}
                         />
                     )}
-                    <div className="flex justify-between items-center">
-                        <div className="flex gap-2 items-center h-10">
+                    <div className="flex items-center gap-2">
+                        <div className="flex shrink-0 gap-1.5 items-center h-10">
                             <div className="flex items-center h-full">
                                 {(billState.images?.length ?? 0) > 0 && (
                                     <div className="pr-2 flex gap-[6px] items-center overflow-x-auto max-w-22 h-full scrollbar-hidden">
@@ -558,7 +596,7 @@ export default function EditorForm({
                                         className="px-1 flex justify-center items-center rounded-full transition-all cursor-pointer"
                                         onClick={chooseImage}
                                     >
-                                        <i className="icon-xs icon-[mdi--image-plus-outline] text-[white]"></i>
+                                        <i className="icon-xs icon-[mdi--image-plus-outline] text-foreground/80 dark:text-white"></i>
                                     </button>
                                 )}
                             </div>
@@ -586,11 +624,24 @@ export default function EditorForm({
                                             });
                                         }}
                                     >
-                                        <i className="icon-[mdi--add-location]" />
+                                        <i className="icon-[mdi--add-location] text-foreground/80 dark:text-white" />
                                     </CurrentLocation>
                                 )}
                             </div>
-                            <div className="rounded-full transition-all hover:(bg-stone-700) active:(bg-stone-500)">
+                            <div className="flex shrink-0 items-center gap-1 rounded-xl border border-border/70 bg-background/75 px-1 py-1 shadow-sm dark:border-white/10 dark:bg-white/5">
+                                <button
+                                    type="button"
+                                    className="flex h-8 w-8 justify-center items-center rounded-lg transition-all cursor-pointer text-foreground/80 hover:bg-accent hover:text-accent-foreground active:bg-accent/80 dark:text-white/85 dark:hover:bg-white/10 dark:hover:text-white"
+                                    onClick={() => {
+                                        applyTimeChange(
+                                            dayjs(billState.time)
+                                                .subtract(1, "day")
+                                                .valueOf(),
+                                        );
+                                    }}
+                                >
+                                    <i className="icon-[mdi--chevron-left]" />
+                                </button>
                                 <DatePicker
                                     fixedTime
                                     closeOnDateSelect
@@ -598,39 +649,23 @@ export default function EditorForm({
                                     popoverAlign="start"
                                     popoverSideOffset={8}
                                     value={billState.time}
-                                    onChange={(time) => {
-                                        setBillState((prev) => {
-                                            if (!prev.currency) {
-                                                return {
-                                                    ...prev,
-                                                    time: time,
-                                                };
-                                            }
-                                            const { predict } = convert(
-                                                amountToNumber(
-                                                    prev.currency?.amount ??
-                                                        prev.amount,
-                                                ),
-                                                prev.currency.target,
-                                                baseCurrency.id,
-                                                time,
-                                            );
-                                            return {
-                                                ...prev,
-                                                time: time,
-                                                amount: numberToAmount(predict),
-                                                currency: {
-                                                    base: baseCurrency.id,
-                                                    target: prev.currency
-                                                        .target,
-                                                    amount:
-                                                        prev.currency?.amount ??
-                                                        prev.amount,
-                                                },
-                                            };
-                                        });
-                                    }}
+                                    triggerClassName="h-8 min-w-[68px] justify-center rounded-lg px-1 text-sm font-medium text-foreground/90 hover:bg-accent hover:text-accent-foreground dark:text-white dark:hover:bg-white/10 dark:hover:text-white"
+                                    displayClassName="mx-0"
+                                    onChange={applyTimeChange}
                                 />
+                                <button
+                                    type="button"
+                                    className="flex h-8 w-8 justify-center items-center rounded-lg transition-all cursor-pointer text-foreground/80 hover:bg-accent hover:text-accent-foreground active:bg-accent/80 dark:text-white/85 dark:hover:bg-white/10 dark:hover:text-white"
+                                    onClick={() => {
+                                        applyTimeChange(
+                                            dayjs(billState.time)
+                                                .add(1, "day")
+                                                .valueOf(),
+                                        );
+                                    }}
+                                >
+                                    <i className="icon-[mdi--chevron-right]" />
+                                </button>
                             </div>
                         </div>
                         <RemarkHint
@@ -642,7 +677,7 @@ export default function EditorForm({
                                 }));
                             }}
                         >
-                            <div className="flex h-full flex-1">
+                            <div className="flex h-10 min-w-0 flex-1 items-center rounded-xl border border-border/70 bg-background/75 px-3 shadow-sm dark:border-white/10 dark:bg-white/5">
                                 <IOSUnscrolledInput
                                     value={billState.comment}
                                     onChange={(e) => {
@@ -652,7 +687,7 @@ export default function EditorForm({
                                         }));
                                     }}
                                     type="text"
-                                    className="w-full bg-transparent text-white text-right placeholder-opacity-50 outline-none"
+                                    className="w-full min-w-0 bg-transparent text-foreground text-right placeholder:text-foreground/45 outline-none dark:text-white dark:placeholder:text-white/45"
                                     placeholder={t("comment")}
                                     enterKeyHint="done"
                                 />
@@ -662,8 +697,10 @@ export default function EditorForm({
 
                     <button
                         type="button"
-                        className="flex h-[80px] min-h-[48px] justify-center items-center bg-green-700 rounded-lg font-bold text-lg cursor-pointer"
-                        onClick={toConfirm}
+                        className="flex h-[80px] min-h-[48px] justify-center items-center bg-green-700 text-white rounded-lg font-bold text-lg cursor-pointer shadow-sm hover:bg-green-700/90"
+                        onClick={() => {
+                            void toConfirm();
+                        }}
                     >
                         <i className="icon-[mdi--check] icon-md"></i>
                     </button>
@@ -671,10 +708,14 @@ export default function EditorForm({
                         className={cn("flex-1")}
                         onKey={(v) => {
                             if (v === "r") {
-                                toConfirm();
-                                window.setTimeout(() => {
-                                    void goAddBill();
-                                }, ADD_AGAIN_REOPEN_DELAY_MS);
+                                void toConfirm().then((confirmed) => {
+                                    if (!confirmed) {
+                                        return;
+                                    }
+                                    window.setTimeout(() => {
+                                        void goAddBill();
+                                    }, ADD_AGAIN_REOPEN_DELAY_MS);
+                                });
                             }
                         }}
                     />

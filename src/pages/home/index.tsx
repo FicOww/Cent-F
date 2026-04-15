@@ -15,8 +15,9 @@ import { showBookGuide } from "@/components/book/util";
 import BudgetCard from "@/components/budget/card";
 import { HintTooltip } from "@/components/hint";
 import { PaginationIndicator } from "@/components/indicator";
-import CreatorFilterBar from "@/components/ledger/creator-filter-bar";
+import type { LedgerRef } from "@/components/ledger";
 import Ledger from "@/components/ledger";
+import CreatorFilterBar from "@/components/ledger/creator-filter-bar";
 import Loading from "@/components/loading";
 import { Promotion } from "@/components/promotion";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,7 @@ import { useSnap } from "@/hooks/use-snap";
 import { amountToNumber } from "@/ledger/bill";
 import type { Bill } from "@/ledger/type";
 import { useIntl } from "@/locale";
+import { useAddBillStore } from "@/store/add-bill";
 import { useBookStore } from "@/store/book";
 import { useLedgerStore } from "@/store/ledger";
 import { usePreferenceStore } from "@/store/preference";
@@ -80,14 +82,12 @@ export default function Page() {
 
     const [visibleDate, setVisibleDate] = useState(dayjs());
     const [selectedDate, setSelectedDate] = useState<dayjs.Dayjs>();
-    const [selectedMonth, setSelectedMonth] = useState(() =>
-        dayjs().startOf("month"),
-    );
+    const [selectedMonth, setSelectedMonth] = useState<dayjs.Dayjs>();
     const [selectedCreatorId, setSelectedCreatorId] = useState<
         string | number | undefined
     >();
-    const ledgerRef = useRef<any>(null);
-    const summaryDate = selectedDate ?? selectedMonth;
+    const pendingFocusBill = useAddBillStore((state) => state.pendingFocusBill);
+    const ledgerRef = useRef<LedgerRef>(null);
     const isDailySummary = selectedDate !== undefined;
 
     const visibleBills = useMemo(() => {
@@ -99,7 +99,10 @@ export default function Page() {
         );
     }, [bills, selectedCreatorId]);
 
-    const monthBills = useMemo(() => {
+    const displayedBills = useMemo(() => {
+        if (!selectedMonth) {
+            return visibleBills;
+        }
         return filterOrderedBillListByTimeRange(visibleBills, [
             selectedMonth.startOf("month"),
             selectedMonth.endOf("month"),
@@ -108,23 +111,27 @@ export default function Page() {
 
     const summaryBills = useMemo(() => {
         if (!isDailySummary) {
-            return monthBills;
+            return displayedBills;
         }
-        return filterOrderedBillListByTimeRange(monthBills, [
-            summaryDate.startOf("day"),
-            summaryDate.endOf("day"),
+        return filterOrderedBillListByTimeRange(displayedBills, [
+            selectedDate.startOf("day"),
+            selectedDate.endOf("day"),
         ]);
-    }, [isDailySummary, monthBills, summaryDate]);
+    }, [displayedBills, isDailySummary, selectedDate]);
 
     const summaryAmount = useMemo(() => {
         return sumBillAmount(summaryBills);
     }, [summaryBills]);
+    const summaryLabel = selectedDate
+        ? denseDate(selectedDate)
+        : selectedMonth
+          ? selectedMonth.format("YYYY-MM")
+          : t("all");
     const monthPickerYearRange = useMemo(() => {
         const currentYear = dayjs().year();
         if (visibleBills.length === 0) {
             return [currentYear - 10, currentYear] as const;
         }
-        const newestYear = dayjs.unix(visibleBills[0].time / 1000).year();
         const oldestYear = dayjs
             .unix(visibleBills[visibleBills.length - 1].time / 1000)
             .year();
@@ -159,15 +166,15 @@ export default function Page() {
         (date: dayjs.Dayjs) => {
             setSelectedDate(date);
             setVisibleDate(date);
-            const index = monthBills.findIndex((bill) => {
+            const index = displayedBills.findIndex((bill) => {
                 const billDate = dayjs.unix(bill.time / 1000);
                 return billDate.isSame(date, "day");
             });
             if (index >= 0) {
-                ledgerRef.current?.scrollToIndex(index);
+                ledgerRef.current?.scrollToIndex(index, "start");
             }
         },
-        [monthBills],
+        [displayedBills],
     );
 
     const onItemShow = useCallback((index: number) => {
@@ -203,7 +210,10 @@ export default function Page() {
     }, [visibleDate, visibleBills]);
 
     useEffect(() => {
-        if (!allLoaded.current && !selectedMonth.isSame(dayjs(), "month")) {
+        if (
+            !allLoaded.current &&
+            (!selectedMonth || !selectedMonth.isSame(dayjs(), "month"))
+        ) {
             useLedgerStore.getState().refreshBillList();
             allLoaded.current = true;
         }
@@ -213,28 +223,52 @@ export default function Page() {
         if (!selectedDate) {
             return;
         }
-        if (!selectedDate.isSame(selectedMonth, "month")) {
+        if (selectedMonth && !selectedDate.isSame(selectedMonth, "month")) {
             setSelectedDate(undefined);
             return;
         }
-        const hasSelectedDateBills = monthBills.some((bill) =>
+        const hasSelectedDateBills = displayedBills.some((bill) =>
             dayjs.unix(bill.time / 1000).isSame(selectedDate, "day"),
         );
         if (!hasSelectedDateBills) {
             setSelectedDate(undefined);
         }
-    }, [monthBills, selectedDate, selectedMonth]);
+    }, [displayedBills, selectedDate, selectedMonth]);
+
+    useEffect(() => {
+        if (!pendingFocusBill) {
+            return;
+        }
+
+        if (!allLoaded.current) {
+            void useLedgerStore.getState().refreshBillList();
+            allLoaded.current = true;
+        }
+
+        setSelectedCreatorId(undefined);
+        setSelectedMonth(undefined);
+        setSelectedDate(undefined);
+
+        const targetDate = dayjs(pendingFocusBill.time);
+        setVisibleDate(targetDate);
+
+        const index = visibleBills.findIndex(
+            (bill) => bill.id === pendingFocusBill.id,
+        );
+        if (index < 0) {
+            return;
+        }
+
+        ledgerRef.current?.scrollToIndex(index, "start");
+        useAddBillStore.getState().clearPendingFocusBill();
+    }, [pendingFocusBill, visibleBills]);
 
     return (
         <div className="w-full h-full p-2 flex flex-col overflow-hidden page-show">
             <div className="flex flex-wrap flex-col w-full gap-2">
                 <div className="bg-stone-800 text-background dark:bg-foreground/20 dark:text-foreground relative h-20 w-full flex justify-end rounded-lg sm:flex-1 p-4">
                     <div className="absolute top-2 left-4 flex items-center gap-2">
-                        <span className="leading-none">
-                            {isDailySummary
-                                ? denseDate(summaryDate)
-                                : summaryDate.format("YYYY-MM")}
-                        </span>
+                        <span className="leading-none">{summaryLabel}</span>
                         {isDailySummary && (
                             <button
                                 type="button"
@@ -243,7 +277,9 @@ export default function Page() {
                                     setSelectedDate(undefined);
                                 }}
                             >
-                                {t("back-to-month")}
+                                {selectedMonth
+                                    ? t("back-to-month")
+                                    : t("back-to-all")}
                             </button>
                         )}
                     </div>
@@ -269,12 +305,31 @@ export default function Page() {
                         type="button"
                         className={cn(
                             homeFilterChipClassName,
-                            selectedMonth.isSame(dayjs(), "month")
+                            selectedMonth === undefined
                                 ? homeFilterChipActiveClassName
                                 : homeFilterChipInactiveClassName,
                         )}
                         onClick={() => {
-                            setSelectedMonth(dayjs().startOf("month"));
+                            setSelectedMonth(undefined);
+                            setSelectedDate(undefined);
+                        }}
+                    >
+                        {t("all")}
+                    </button>
+                    <button
+                        type="button"
+                        className={cn(
+                            homeFilterChipClassName,
+                            selectedMonth?.isSame(dayjs(), "month")
+                                ? homeFilterChipActiveClassName
+                                : homeFilterChipInactiveClassName,
+                        )}
+                        onClick={() => {
+                            setSelectedMonth((prev) =>
+                                prev?.isSame(dayjs(), "month")
+                                    ? undefined
+                                    : dayjs().startOf("month"),
+                            );
                             setSelectedDate(undefined);
                         }}
                     >
@@ -284,7 +339,7 @@ export default function Page() {
                         type="button"
                         className={cn(
                             homeFilterChipClassName,
-                            selectedMonth.isSame(
+                            selectedMonth?.isSame(
                                 dayjs().subtract(1, "month"),
                                 "month",
                             )
@@ -292,8 +347,15 @@ export default function Page() {
                                 : homeFilterChipInactiveClassName,
                         )}
                         onClick={() => {
-                            setSelectedMonth(
-                                dayjs().subtract(1, "month").startOf("month"),
+                            setSelectedMonth((prev) =>
+                                prev?.isSame(
+                                    dayjs().subtract(1, "month"),
+                                    "month",
+                                )
+                                    ? undefined
+                                    : dayjs()
+                                          .subtract(1, "month")
+                                          .startOf("month"),
                             );
                             setSelectedDate(undefined);
                         }}
@@ -377,11 +439,13 @@ export default function Page() {
             </div>
             <div className="flex-1 translate-0 pb-[10px] overflow-hidden">
                 <div className="w-full h-full">
-                    {monthBills.length > 0 ? (
+                    {displayedBills.length > 0 ? (
                         <Ledger
                             ref={ledgerRef}
-                            bills={monthBills}
-                            className={cn(monthBills.length > 0 && "relative")}
+                            bills={displayedBills}
+                            className={cn(
+                                displayedBills.length > 0 && "relative",
+                            )}
                             enableDivideAsOrdered
                             showTime
                             onItemShow={onItemShow}
@@ -406,12 +470,15 @@ function MonthPicker({
     yearRange,
     onChange,
 }: {
-    value: dayjs.Dayjs;
+    value?: dayjs.Dayjs;
     yearRange: readonly [number, number];
-    onChange: (value: dayjs.Dayjs) => void;
+    onChange: (value?: dayjs.Dayjs) => void;
 }) {
+    const t = useIntl();
     const [open, setOpen] = useState(false);
-    const [displayYear, setDisplayYear] = useState(value.year());
+    const [displayYear, setDisplayYear] = useState(
+        () => value?.year() ?? dayjs().year(),
+    );
     const [selectingYear, setSelectingYear] = useState(false);
     const [minYear, maxYear] = yearRange;
     const yearPageStart = useMemo(() => {
@@ -419,7 +486,7 @@ function MonthPicker({
     }, [displayYear, minYear]);
 
     useEffect(() => {
-        setDisplayYear(value.year());
+        setDisplayYear(value?.year() ?? dayjs().year());
     }, [value]);
 
     return (
@@ -435,13 +502,28 @@ function MonthPicker({
                     )}
                 >
                     <i className="icon-[mdi--calendar-month-outline] size-4 text-foreground/80"></i>
-                    {value.format("YYYY-MM")}
+                    {value ? value.format("YYYY-MM") : t("all")}
                 </Button>
             </PopoverTrigger>
             <PopoverContent
                 align="start"
                 className="w-[272px] rounded-2xl border-border/70 bg-background/95 p-3 backdrop-blur"
             >
+                <button
+                    type="button"
+                    className={cn(
+                        "mb-3 flex h-10 w-full items-center justify-center rounded-xl border text-sm transition-colors",
+                        value === undefined
+                            ? HIGH_CONTRAST_SELECTED_CLASS
+                            : "border-border text-foreground/80 hover:bg-accent hover:text-accent-foreground",
+                    )}
+                    onClick={() => {
+                        onChange(undefined);
+                        setOpen(false);
+                    }}
+                >
+                    {t("all")}
+                </button>
                 <div className="flex items-center justify-between gap-2">
                     <Button
                         variant="outline"
@@ -459,7 +541,9 @@ function MonthPicker({
                                 );
                                 return;
                             }
-                            setDisplayYear((prev) => Math.max(minYear, prev - 1));
+                            setDisplayYear((prev) =>
+                                Math.max(minYear, prev - 1),
+                            );
                         }}
                     >
                         <i className="icon-[mdi--chevron-left] size-4"></i>
@@ -491,7 +575,9 @@ function MonthPicker({
                                 );
                                 return;
                             }
-                            setDisplayYear((prev) => Math.min(maxYear, prev + 1));
+                            setDisplayYear((prev) =>
+                                Math.min(maxYear, prev + 1),
+                            );
                         }}
                     >
                         <i className="icon-[mdi--chevron-right] size-4"></i>
@@ -504,13 +590,13 @@ function MonthPicker({
                             if (year > maxYear) {
                                 return null;
                             }
-                            const checked = year === value.year();
+                            const checked = year === value?.year();
                             return (
                                 <button
                                     key={year}
                                     type="button"
                                     className={cn(
-                                    "h-10 rounded-xl border text-sm transition-colors tabular-nums",
+                                        "h-10 rounded-xl border text-sm transition-colors tabular-nums",
                                         checked
                                             ? HIGH_CONTRAST_SELECTED_CLASS
                                             : "border-border text-foreground/80 hover:bg-accent hover:text-accent-foreground",
@@ -532,19 +618,23 @@ function MonthPicker({
                                 .year(displayYear)
                                 .month(index)
                                 .startOf("month");
-                            const checked = monthValue.isSame(value, "month");
+                            const checked = value
+                                ? monthValue.isSame(value, "month")
+                                : false;
                             return (
                                 <button
                                     key={`${displayYear}-${index + 1}`}
                                     type="button"
                                     className={cn(
-                                    "h-10 rounded-xl border text-sm transition-colors",
+                                        "h-10 rounded-xl border text-sm transition-colors",
                                         checked
                                             ? HIGH_CONTRAST_SELECTED_CLASS
                                             : "border-border text-foreground/80 hover:bg-accent hover:text-accent-foreground",
                                     )}
                                     onClick={() => {
-                                        onChange(monthValue);
+                                        onChange(
+                                            checked ? undefined : monthValue,
+                                        );
                                         setOpen(false);
                                     }}
                                 >

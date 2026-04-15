@@ -1,3 +1,4 @@
+import { useAddBillStore } from "@/store/add-bill";
 import { useLedgerStore } from "@/store/ledger";
 import createConfirmProvider from "../confirm";
 import EditorForm from "./form";
@@ -14,5 +15,14 @@ export { BillEditorProvider, showBillEditor };
 
 export const goAddBill = async () => {
     const newBill = await showBillEditor();
-    await useLedgerStore.getState().addBill(newBill);
+    const billId = await useLedgerStore.getState().addBill(newBill);
+    useAddBillStore.getState().setLastAddedTime(newBill.time);
+    useAddBillStore.getState().setPendingFocusBill({
+        id: billId,
+        time: newBill.time,
+    });
+    return {
+        id: billId,
+        time: newBill.time,
+    };
 };

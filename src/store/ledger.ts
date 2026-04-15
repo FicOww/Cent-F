@@ -40,8 +40,8 @@ type LedgerStoreState = {
 };
 
 type LedgerStoreActions = {
-    addBill: (entry: Omit<Bill, "id" | "creatorId">) => Promise<void>;
-    addBills: (entries: Omit<Bill, "id" | "creatorId">[]) => Promise<void>;
+    addBill: (entry: Omit<Bill, "id" | "creatorId">) => Promise<string>;
+    addBills: (entries: Omit<Bill, "id" | "creatorId">[]) => Promise<string[]>;
     removeBills: (ids: Bill["id"][]) => Promise<void>;
     removeBill: (id: Bill["id"]) => Promise<void>;
     updateBill: (
@@ -279,20 +279,22 @@ export const useLedgerStore = create<LedgerStore>()((set, get) => {
         const { StorageAPI } = await loadStorageAPI();
         const repo = getCurrentFullRepoName();
         const creatorId = useUserStore.getState().id;
-        StorageAPI.batch(
+        const createdIds = entries.map(() => v4());
+        await StorageAPI.batch(
             repo,
-            entries.map((v) => {
+            entries.map((v, index) => {
                 return {
                     type: "update",
                     value: {
                         ...v,
                         amount: Math.abs(v.amount),
                         creatorId,
-                        id: v4(),
+                        id: createdIds[index],
                     },
                 };
             }),
         );
+        return createdIds;
     };
 
     return {
@@ -307,8 +309,9 @@ export const useLedgerStore = create<LedgerStore>()((set, get) => {
         removeBill: async (id) => {
             return removeBills([id]);
         },
-        addBill: (v) => {
-            return addBills([v]);
+        addBill: async (v) => {
+            const [id] = await addBills([v]);
+            return id;
         },
         addBills,
         updateBills,
