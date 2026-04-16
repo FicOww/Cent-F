@@ -2,6 +2,11 @@
 /// <reference types="unplugin-info/client" />
 /// <reference types="vite-plugin-svgr/client" />
 
+interface ImportMetaEnv {
+    readonly VITE_SELF_HOST_GITHUB_ONLY?: string;
+    readonly VITE_DISABLE_OAUTH_LOGIN?: string;
+}
+
 // node-forge 子模块类型声明（用于按需导入）
 declare module "node-forge/lib/forge" {
     const forge: unknown;
