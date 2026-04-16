@@ -1,7 +1,11 @@
 {
   "APP_NAME": "Cent",
   "APP_TITLE": "One bite to one cent",
+  "DayBeforeYesterday": "Day before yesterday",
+  "Yesterday": "Yesterday",
   "Today": "Today",
+  "Tomorrow": "Tomorrow",
+  "DayAfterTomorrow": "Day after tomorrow",
   "ended": "end",
   "nothing-here-add-one-bill": "Nothing here, add one bill",
   "back": "Back",

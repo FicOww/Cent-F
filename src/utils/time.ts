@@ -43,6 +43,42 @@ export const denseDate = (time: Dayjs, joiner = "-") => {
     return time.format(`YYYY${joiner}MM${joiner}DD`);
 };
 
+export const standardDenseDate = (time: Dayjs) => {
+    const now = dayjs();
+    if (intl.locale === "zh") {
+        if (time.isSame(now, "year")) {
+            return time.format("M月D日");
+        }
+        return time.format("YYYY年M月D日");
+    }
+    if (time.isSame(now, "year")) {
+        return time.format("MM-DD");
+    }
+    return time.format("YYYY-MM-DD");
+};
+
+export const relativeDenseDate = (time: Dayjs) => {
+    const now = dayjs();
+    const dayDiff = time.startOf("day").diff(now.startOf("day"), "day");
+
+    if (dayDiff < -2 || dayDiff > 2) {
+        return standardDenseDate(time);
+    }
+
+    const relativeLabelMap: Record<number, string> = {
+        [-2]: t("DayBeforeYesterday"),
+        [-1]: t("Yesterday"),
+        [0]: t("Today"),
+        [1]: t("Tomorrow"),
+        [2]: t("DayAfterTomorrow"),
+    };
+
+    const dayLabel =
+        intl.locale === "zh" ? `${time.format("D")}日` : time.format("MMM D");
+
+    return `${relativeLabelMap[dayDiff]}(${dayLabel})`;
+};
+
 export const denseTime = (_time: Dayjs | number) => {
     const now = dayjs();
     const time =

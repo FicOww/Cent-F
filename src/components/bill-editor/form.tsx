@@ -19,6 +19,7 @@ import { useUserStore } from "@/store/user";
 import { cn } from "@/utils";
 import { getPredictNow } from "@/utils/predict";
 import { getEffectiveSettlementConfig } from "@/utils/tag-config";
+import { relativeDenseDate } from "@/utils/time";
 import { showTagList } from "../bill-tag";
 import { showCategoryList } from "../category";
 import { CategoryItem } from "../category/item";
@@ -649,8 +650,11 @@ export default function EditorForm({
                                     popoverAlign="start"
                                     popoverSideOffset={8}
                                     value={billState.time}
-                                    triggerClassName="h-8 min-w-[68px] justify-center rounded-lg px-1 text-sm font-medium text-foreground/90 hover:bg-accent hover:text-accent-foreground dark:text-white dark:hover:bg-white/10 dark:hover:text-white"
-                                    displayClassName="mx-0"
+                                    displayFormatter={(time) =>
+                                        time ? relativeDenseDate(time) : ""
+                                    }
+                                    triggerClassName="h-8 w-[120px] shrink-0 justify-center rounded-lg px-2 text-sm font-medium tabular-nums text-foreground/90 hover:bg-accent hover:text-accent-foreground dark:text-white dark:hover:bg-white/10 dark:hover:text-white"
+                                    displayClassName="mx-0 truncate"
                                     onChange={applyTimeChange}
                                 />
                                 <button

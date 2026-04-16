@@ -1,7 +1,11 @@
 {
   "APP_NAME": "日计",
   "APP_TITLE": "一日之计",
+  "DayBeforeYesterday": "前天",
+  "Yesterday": "昨天",
   "Today": "今天",
+  "Tomorrow": "明天",
+  "DayAfterTomorrow": "后天",
   "ended": "结束啦",
   "nothing-here-add-one-bill": "还没有记录，来记一笔吧",
   "back": "返回",
