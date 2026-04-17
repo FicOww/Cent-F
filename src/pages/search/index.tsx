@@ -91,9 +91,20 @@ export default function Page() {
     });
     const [filterOpen, setFilterOpen] = useState(false);
 
-    const toReset = useCallback(() => {
+    const toReset = useCallback(async () => {
+        try {
+            await modal.prompt({
+                title: t("are-you-sure-to-reset-search"),
+            });
+        } catch {
+            return;
+        }
         setForm({});
-    }, []);
+        setList([]);
+        setSearched(false);
+        setEnableSelect(false);
+        setSelectedIds([]);
+    }, [t]);
 
     const showAssets = usePreferenceStore(
         useShallow((state) => state.showAssetsInLedger),
@@ -110,6 +121,7 @@ export default function Page() {
         setSelectedIds([]);
         const result = await StorageDeferredAPI.filter(book, form);
         setList(result);
+        setSearched(true);
     }, [form]);
 
     const navigate = useNavigate();
@@ -266,6 +278,11 @@ export default function Page() {
                                     type="text"
                                     maxLength={50}
                                     className="w-full bg-transparent outline-none"
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                            void toSearch();
+                                        }
+                                    }}
                                     onChange={(e) => {
                                         setForm((v) => ({
                                             ...v,
@@ -278,12 +295,7 @@ export default function Page() {
                         <Button
                             variant="ghost"
                             className="p-3 rounded-md"
-                            onClick={() => {
-                                toSearch();
-                                setTimeout(() => {
-                                    setSearched(true);
-                                }, 1000);
-                            }}
+                            onClick={() => void toSearch()}
                         >
                             <i className="icon-[mdi--search]"></i>
                         </Button>
@@ -298,7 +310,7 @@ export default function Page() {
                         <BillFilterForm form={form} setForm={setForm} />
                     </Collapsible.Content>
                     <div className="w-full flex justify-between px-2 pt-1">
-                        <Button variant="ghost" onClick={toReset}>
+                        <Button variant="ghost" onClick={() => void toReset()}>
                             {t("reset")}
                         </Button>
                         {searched && (

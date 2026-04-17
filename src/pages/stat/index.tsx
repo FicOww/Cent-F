@@ -64,6 +64,19 @@ function getDefaultCustomRange(range: [number, number]) {
     return [Math.max(range[0], startOfMonth), range[1]] as [number, number];
 }
 
+function normalizeCustomRange(
+    range?: [number | undefined, number | undefined],
+) {
+    if (!range) {
+        return range;
+    }
+    const [start, end] = range;
+    return [
+        start === undefined ? undefined : dayjs(start).startOf("day").valueOf(),
+        end === undefined ? undefined : dayjs(end).endOf("day").valueOf(),
+    ] as [number | undefined, number | undefined];
+}
+
 function normalizeDateState(
     state: DateSliceState | undefined,
     viewSlices: ReturnType<typeof buildDateSlices>,
@@ -72,21 +85,26 @@ function normalizeDateState(
     if (!state) {
         return {
             sliceId: getDefaultSliceId(viewSlices),
-            customRange: getDefaultCustomRange(fullRange),
+            customRange: normalizeCustomRange(getDefaultCustomRange(fullRange)),
         };
     }
     if (!state?.sliceId) {
         return {
             sliceId: undefined,
-            customRange: state?.customRange ?? getDefaultCustomRange(fullRange),
+            customRange: normalizeCustomRange(
+                state?.customRange ?? getDefaultCustomRange(fullRange),
+            ),
         };
     }
     if (hasSliceId(state.sliceId, viewSlices)) {
-        return state;
+        return {
+            ...state,
+            customRange: normalizeCustomRange(state.customRange),
+        };
     }
     return {
         sliceId: getDefaultSliceId(viewSlices),
-        customRange: state.customRange,
+        customRange: normalizeCustomRange(state.customRange),
     };
 }
 
@@ -101,15 +119,15 @@ function getDateStateFromQuery(
         const start = searchParams.get("start");
         const end = searchParams.get("end");
         return normalizeDateState(
-            {
-                sliceId: undefined,
-                customRange:
+                {
+                    sliceId: undefined,
+                    customRange:
                     start && end
-                        ? [Number(start), Number(end)]
+                        ? normalizeCustomRange([Number(start), Number(end)])
                         : fallback?.customRange,
-            },
-            viewSlices,
-            fullRange,
+                },
+                viewSlices,
+                fullRange,
         );
     }
     if (view) {

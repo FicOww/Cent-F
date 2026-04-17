@@ -74,7 +74,11 @@ const isCateMatched = (bill: Bill, cates?: string[]) => {
 };
 
 const isCommentMatched = (bill: Bill, comment?: string) => {
-    return comment ? Boolean(bill.comment?.includes(comment)) : true;
+    if (!comment) {
+        return true;
+    }
+    const keyword = comment.toLocaleLowerCase();
+    return Boolean(bill.comment?.toLocaleLowerCase().includes(keyword));
 };
 
 const isAssetsMatched = (bill: Bill, assets?: boolean) => {

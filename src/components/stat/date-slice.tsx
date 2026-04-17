@@ -1,9 +1,11 @@
 import dayjs, { type Dayjs } from "dayjs";
-import { type ReactNode, useMemo, useState } from "react";
-import { DateInput } from "@/components/bill-filter/form";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
+import type { DateRange } from "react-day-picker";
 import { useIntl } from "@/locale";
 import { cn } from "@/utils";
+import { Calendar } from "../ui/calendar";
 import { Button } from "../ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 
 type DateSliceId = string; // weekly|YYYY
 
@@ -35,6 +37,122 @@ type DateSlice = {
     start: Dayjs;
     label: string;
 };
+
+function normalizeCustomRange(
+    value?: [number | undefined, number | undefined],
+) {
+    if (!value) {
+        return value;
+    }
+    const [start, end] = value;
+    return [
+        start === undefined ? undefined : dayjs(start).startOf("day").valueOf(),
+        end === undefined ? undefined : dayjs(end).endOf("day").valueOf(),
+    ] as [number | undefined, number | undefined];
+}
+
+function toDateRange(value?: [number | undefined, number | undefined]) {
+    if (!value?.[0]) {
+        return undefined;
+    }
+    return {
+        from: dayjs(value[0]).toDate(),
+        to: value[1] ? dayjs(value[1]).toDate() : undefined,
+    } satisfies DateRange;
+}
+
+function CustomRangePicker({
+    value,
+    onChange,
+}: {
+    value?: [number | undefined, number | undefined];
+    onChange?: (value: [number | undefined, number | undefined]) => void;
+}) {
+    const t = useIntl();
+    const [open, setOpen] = useState(false);
+    const [draftRange, setDraftRange] = useState<DateRange | undefined>(() =>
+        toDateRange(value),
+    );
+
+    useEffect(() => {
+        setDraftRange(toDateRange(value));
+    }, [open, value]);
+
+    const hasValue = value?.[0] !== undefined && value?.[1] !== undefined;
+    const displayText = hasValue
+        ? `${dayjs(value[0]).format("YY/MM/DD")} - ${dayjs(value[1]).format(
+              "YY/MM/DD",
+          )}`
+        : t("range");
+    const selectedRange = draftRange;
+    const calendarKey = `${selectedRange?.from?.toISOString() ?? "none"}-${selectedRange?.to?.toISOString() ?? "none"}`;
+    const helperText = draftRange?.from && !draftRange.to
+        ? t("please-select-end-date")
+        : t("please-select-start-date");
+    const defaultMonth = draftRange?.from ??
+        (value?.[0] ? dayjs(value[0]).toDate() : dayjs().toDate());
+
+    return (
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+                <Button
+                    variant="outline"
+                    className={cn(
+                        "min-w-[210px] justify-start px-3 text-left font-normal",
+                        !hasValue && "text-muted-foreground",
+                    )}
+                >
+                    <i className="icon-[mdi--calendar-range-outline] size-4 shrink-0"></i>
+                    <span className="truncate">{displayText}</span>
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent
+                className="w-auto overflow-hidden p-3"
+                align="start"
+            >
+                <Calendar
+                    key={calendarKey}
+                    mode="range"
+                    captionLayout="dropdown"
+                    className="rounded-md p-0"
+                    selected={selectedRange}
+                    defaultMonth={defaultMonth}
+                    numberOfMonths={1}
+                    onDayClick={(day) => {
+                        if (!draftRange?.from || draftRange.to) {
+                            setDraftRange({
+                                from: day,
+                                to: undefined,
+                            });
+                            return;
+                        }
+                        const start = dayjs(draftRange.from);
+                        const end = dayjs(day);
+                        const [from, to] = end.isBefore(start, "day")
+                            ? [end, start]
+                            : [start, end];
+                        const normalizedRange = {
+                            from: from.toDate(),
+                            to: to.toDate(),
+                        } satisfies DateRange;
+                        setDraftRange(normalizedRange);
+                        onChange?.([
+                            dayjs(normalizedRange.from)
+                                .startOf("day")
+                                .valueOf(),
+                            dayjs(normalizedRange.to).endOf("day").valueOf(),
+                        ]);
+                        setOpen(false);
+                    }}
+                />
+                <div className="px-3 pt-2 text-xs text-muted-foreground">
+                    {helperText}
+                </div>
+            </PopoverContent>
+        </Popover>
+    );
+}
+
 function calcDateSlice(
     range: [number, number],
     viewType: "weekly" | "monthly" | "yearly",
@@ -194,21 +312,12 @@ export function DateSliced({
                     </div>
                 ) : (
                     <div className="flex-1 flex items-center gap-3 text-xs">
-                        <DateInput
-                            value={custom?.[0]}
-                            type="start"
+                        <CustomRangePicker
+                            value={normalizeCustomRange(custom)}
                             onChange={(v) => {
-                                onCustomValueChange?.([v, custom?.[1]]);
+                                onCustomValueChange?.(v);
                             }}
-                        ></DateInput>
-                        <div>-</div>
-                        <DateInput
-                            value={custom?.[1]}
-                            type="end"
-                            onChange={(v) => {
-                                onCustomValueChange?.([custom?.[0], v]);
-                            }}
-                        ></DateInput>
+                        />
                     </div>
                 )}
                 {children}
@@ -251,7 +360,8 @@ export function useDateSliced({
         value: sliceId,
         onValueChange: setSliceId,
         custom: customRange,
-        onCustomValueChange: setCustomRange,
+        onCustomValueChange: (value) =>
+            setCustomRange(normalizeCustomRange(value)),
     };
 
     const viewType = sliceId

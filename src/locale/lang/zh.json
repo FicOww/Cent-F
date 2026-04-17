@@ -84,6 +84,7 @@
   "help_link": "https://github.com/glink25/Cent/blob/main/docs/Help_zh.md",
   "sum": "结余",
   "are-you-sure-to-delete-this-bill": "确定要删除这条记录吗？",
+  "are-you-sure-to-reset-search": "确定要重置搜索条件并清空搜索结果吗？",
   "see-details": "查看详情",
   "please-enter-a-name-for-current-filter": "请输入当前分析名称",
   "as-date": "指定日期",

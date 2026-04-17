@@ -82,6 +82,7 @@
   "help_link": "https://github.com/glink25/Cent/blob/main/docs/Help_en.md",
   "sum": "sum",
   "are-you-sure-to-delete-this-bill": "Are you sure to delete this bill?",
+  "are-you-sure-to-reset-search": "Are you sure you want to reset the search filters and clear the results?",
   "see-details": "see details",
   "please-enter-a-name-for-current-filter": "Please enter a name for current filter",
   "recent": "Recent",

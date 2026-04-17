@@ -23,7 +23,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-.codex-todo.md
+.codex*
 
 # Rust build artifacts
 src-tauri/target
