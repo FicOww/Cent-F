@@ -1,4 +1,4 @@
-import { StorageAPI, StorageDeferredAPI } from "@/api/storage";
+import { StorageAPI } from "@/api/storage";
 import PopupLayout from "@/layouts/popup-layout";
 import { useIntl } from "@/locale";
 import { useUserStore } from "@/store/user";
@@ -11,6 +11,7 @@ import DataManagerSettingsItem from "../data-manager";
 import modal from "../modal";
 import ScheduledSettingsItems from "../scheduled/settings-item";
 import { Button } from "../ui/button";
+import WidgetSettings from "../widget";
 import AboutSettingsItem, { AdvancedGuideItem } from "./about";
 import AssistantSettingsItem from "./assistant";
 import LabSettingsItem from "./lab";
@@ -88,7 +89,7 @@ function UserInfo() {
 }
 
 export default function SettingsForm({
-    onConfirm,
+    onConfirm: _onConfirm,
     onCancel,
 }: {
     onConfirm?: (isEdit: boolean) => void;
@@ -113,6 +114,8 @@ export default function SettingsForm({
                         </div>
                         <div className="flex flex-col divide-y">
                             <BookSettings />
+                            <PresetSettingsItem />
+                            <WidgetSettings />
                             <UserSettingsItem />
                             <DataManagerSettingsItem />
                         </div>
@@ -143,7 +146,6 @@ export default function SettingsForm({
                             {t("other-settings")}
                         </div>
                         <div className="flex flex-col divide-y">
-                            <PresetSettingsItem />
                             <MapSettingsItem />
                             <LabSettingsItem />
                             <AboutSettingsItem />

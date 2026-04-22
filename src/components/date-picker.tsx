@@ -148,28 +148,30 @@ export function DatePicker({
                         }
                     }}
                 />
-                <div className="flex justify-between items-center [--cell-size:--spacing(8)] px-2">
-                    <span className="text-sm">{t("time")}</span>
-                    <div className="flex gap-2 items-center">
-                        <NativeSelect
-                            value={current.format("HH")}
-                            options={Hours}
-                            onValueChange={(v) => {
-                                const newValue = current.hour(Number(v));
-                                onChange?.(newValue.unix() * 1000);
-                            }}
-                        />
-                        <span>:</span>
-                        <NativeSelect
-                            value={current.format("mm")}
-                            options={Minutes}
-                            onValueChange={(v) => {
-                                const newValue = current.minute(Number(v));
-                                onChange?.(newValue.unix() * 1000);
-                            }}
-                        />
+                {type !== "date" && (
+                    <div className="flex justify-between items-center [--cell-size:--spacing(8)] px-2">
+                        <span className="text-sm">{t("time")}</span>
+                        <div className="flex gap-2 items-center">
+                            <NativeSelect
+                                value={current.format("HH")}
+                                options={Hours}
+                                onValueChange={(v) => {
+                                    const newValue = current.hour(Number(v));
+                                    onChange?.(newValue.unix() * 1000);
+                                }}
+                            />
+                            <span>:</span>
+                            <NativeSelect
+                                value={current.format("mm")}
+                                options={Minutes}
+                                onValueChange={(v) => {
+                                    const newValue = current.minute(Number(v));
+                                    onChange?.(newValue.unix() * 1000);
+                                }}
+                            />
+                        </div>
                     </div>
-                </div>
+                )}
             </PopoverContent>
         </Popover>
     );

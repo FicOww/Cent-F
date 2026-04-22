@@ -1,3 +1,4 @@
+import type { Widget } from "@/components/widget/type";
 import type { Full } from "@/database/stash";
 import type {
     AssistantMeta,
@@ -9,6 +10,7 @@ import type {
     PersonalMeta,
     Scheduled,
     SettlementConfig,
+    SettlementRecord,
 } from "./extra-type";
 
 export type {
@@ -20,6 +22,7 @@ export type {
     PersonalMeta,
     Scheduled,
     SettlementConfig,
+    SettlementRecord,
 };
 
 export type BillType = "income" | "expense";
@@ -60,6 +63,7 @@ export type BillCategory = {
     color: string;
     customName?: boolean;
     parent?: string;
+    defaultSelect?: boolean;
 };
 
 export type BillTag = {
@@ -76,9 +80,11 @@ export type GlobalMeta = {
     tags: BillTag[];
     tagGroups?: BillTagGroup[];
     settlement?: SettlementConfig;
+    settlementRecords?: SettlementRecord[];
     baseCurrency?: string;
     customCurrencies?: CustomCurrency[];
     quickCurrencies?: string[];
+    widgets?: Widget[];
     assistant?: AssistantMeta;
     map?: {
         amapKey?: string;

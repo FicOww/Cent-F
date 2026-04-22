@@ -20,11 +20,11 @@ import { useChartPart } from "@/components/stat/chart-part";
 import {
     buildDateSlices,
     DateSliced,
+    type DateSliceState,
     getDefaultSliceId,
     getViewTypeFromSliceId,
     hasSliceId,
     resolveSliceRange,
-    type DateSliceState,
 } from "@/components/stat/date-slice";
 import {
     type FocusType,
@@ -45,10 +45,7 @@ import type { Bill } from "@/ledger/type";
 import { useIntl } from "@/locale";
 import { useBookStore } from "@/store/book";
 import { useLedgerStore } from "@/store/ledger";
-import {
-    getStatDateState,
-    setStatDateState,
-} from "@/store/preference";
+import { getStatDateState, setStatDateState } from "@/store/preference";
 import { cn } from "@/utils";
 
 type StatDimension = "category" | "user";
@@ -119,15 +116,15 @@ function getDateStateFromQuery(
         const start = searchParams.get("start");
         const end = searchParams.get("end");
         return normalizeDateState(
-                {
-                    sliceId: undefined,
-                    customRange:
+            {
+                sliceId: undefined,
+                customRange:
                     start && end
                         ? normalizeCustomRange([Number(start), Number(end)])
                         : fallback?.customRange,
-                },
-                viewSlices,
-                fullRange,
+            },
+            viewSlices,
+            fullRange,
         );
     }
     if (view) {
@@ -202,7 +199,9 @@ export default function Page() {
 
     const filterViewId =
         allFilterViews.find((v) => v.id === id)?.id ?? allFilterViews[0].id;
-    const selectedFilterView = allFilterViews.find((v) => v.id === filterViewId);
+    const selectedFilterView = allFilterViews.find(
+        (v) => v.id === filterViewId,
+    );
     const selectedFilter = selectedFilterView?.filter;
 
     const fullRange = [
@@ -249,7 +248,8 @@ export default function Page() {
 
     const navigate = useNavigate();
     const focusType = (searchParams.get("focus") ?? "expense") as FocusType;
-    const dimension = (searchParams.get("dimension") ?? "category") as StatDimension;
+    const dimension = (searchParams.get("dimension") ??
+        "category") as StatDimension;
     const updateStatRoute = ({
         nextFilterViewId = filterViewId,
         nextDateState = dateState,
@@ -516,11 +516,15 @@ export default function Page() {
                                         variant="ghost"
                                         onClick={() => {
                                             const nextFullRange = [
-                                                filter.filter?.start ?? startTime,
+                                                filter.filter?.start ??
+                                                    startTime,
                                                 filter.filter?.end ?? endTime,
                                             ] as [number, number];
                                             const nextViewSlices =
-                                                buildDateSlices(nextFullRange, t);
+                                                buildDateSlices(
+                                                    nextFullRange,
+                                                    t,
+                                                );
                                             updateStatRoute({
                                                 nextFilterViewId: filter.id,
                                                 nextDateState:
@@ -657,7 +661,10 @@ export default function Page() {
                             </div>
                         </div>
                     )}
-                    <SettlementPanel bills={filtered} />
+                    <SettlementPanel
+                        bills={filtered}
+                        range={realRange as [number, number]}
+                    />
                     <AnalysisCloud
                         bills={
                             focusType === "expense"

@@ -39,6 +39,7 @@ export type Budget = {
  * 过滤器，不需要转换，可以略过
  */
 export type BillFilter = Partial<{
+    ids: string[];
     comment: string;
     recent?: {
         value: number;
@@ -73,6 +74,20 @@ export type SettlementConfig = {
     memberATagId?: string;
     memberBTagId?: string;
     tagGroupId?: string;
+};
+
+export type SettlementRecord = {
+    id: string;
+    periodKey: string;
+    start: number;
+    end: number;
+    memberAId: string;
+    memberBId: string;
+    payerId: string;
+    receiverId: string;
+    amount: number;
+    settledAt: number;
+    note?: string;
 };
 
 /** 周期记账配置 */
@@ -115,6 +130,7 @@ export type PersonalMeta = {
     rates?: Record<string, number>;
     tagGroups?: BillTagGroup[];
     settlement?: SettlementConfig;
+    homeWidgets?: string[];
     scheduleds?: Scheduled[];
     customCSS?: string;
     assistant?: AssistantMeta;

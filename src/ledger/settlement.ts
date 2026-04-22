@@ -25,6 +25,7 @@ export type SettlementResult = {
     members: [SettlementMemberSummary, SettlementMemberSummary];
     sharedExpense: number;
     unassignedExpenseCount: number;
+    unassignedExpenseBillIds: string[];
 };
 
 const createMemberSummary = (memberId: string): SettlementMemberSummary => ({
@@ -55,6 +56,7 @@ export const calculateSettlement = (
     let memberAOwned = 0;
     let memberBOwned = 0;
     let unassignedExpenseCount = 0;
+    const unassignedExpenseBillIds: string[] = [];
 
     for (const bill of bills) {
         if (bill.type !== "expense") {
@@ -70,6 +72,7 @@ export const calculateSettlement = (
             bill.tagIds?.filter((tagId) => allowedTagIds.has(tagId)) ?? [];
         if (matchedTagIds.length !== 1) {
             unassignedExpenseCount += 1;
+            unassignedExpenseBillIds.push(bill.id);
             continue;
         }
 
@@ -112,5 +115,18 @@ export const calculateSettlement = (
         members: [memberA, memberB],
         sharedExpense,
         unassignedExpenseCount,
+        unassignedExpenseBillIds,
     };
+};
+
+export const isSettlementConfigComplete = (
+    config?: Partial<SettlementParams>,
+): config is SettlementParams => {
+    return Boolean(
+        config?.memberAId &&
+            config?.memberBId &&
+            config?.homeTagId &&
+            config?.memberATagId &&
+            config?.memberBTagId,
+    );
 };

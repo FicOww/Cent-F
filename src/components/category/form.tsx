@@ -3,7 +3,6 @@ import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod/mini";
 import { StorageDeferredAPI } from "@/api/storage";
-import createConfirmProvider from "@/components/confirm";
 import { Button } from "@/components/ui/button";
 import {
     Form,
@@ -20,6 +19,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import useCategory from "@/hooks/use-category";
 import PopupLayout from "@/layouts/popup-layout";
@@ -43,6 +43,7 @@ const createFormSchema = (t: any) =>
 
         // 可选字符串
         parent: z.optional(z.string()),
+        defaultSelect: z.optional(z.boolean()),
     });
 
 const allIcons = ICONS;
@@ -81,6 +82,7 @@ export default function CategoryEditForm({
             ? {
                   name: category.name,
                   parent: category.parent,
+                  defaultSelect: category.defaultSelect,
               }
             : {
                   name: "",
@@ -92,7 +94,6 @@ export default function CategoryEditForm({
         categories: allCategories,
         update,
         add,
-        reorder,
     } = useCategory();
     const expenses = allExpenses;
     const incomes = allIncomes;
@@ -103,6 +104,7 @@ export default function CategoryEditForm({
             const newCategory = {
                 ...category,
                 ...data,
+                defaultSelect: data.parent ? data.defaultSelect : undefined,
             };
             const newId = await add(newCategory);
             onConfirm?.(newId);
@@ -112,15 +114,18 @@ export default function CategoryEditForm({
             icon: edit.icon,
             name: edit.name,
             parent: edit.parent,
+            defaultSelect: edit.defaultSelect,
         };
         const formattedData = {
             ...data,
             icon: category?.icon,
+            defaultSelect: data.parent ? data.defaultSelect : undefined,
         };
         if (
             originCate.icon === formattedData.icon &&
             originCate.name === formattedData.name &&
-            originCate.parent === formattedData.parent
+            originCate.parent === formattedData.parent &&
+            originCate.defaultSelect === formattedData.defaultSelect
         ) {
             console.log("nothing changed");
             return;
@@ -156,6 +161,7 @@ export default function CategoryEditForm({
         await update(edit.id, undefined);
         onConfirm?.(undefined);
     };
+    const selectedParent = form.watch("parent");
     return (
         <Form {...form}>
             <PopupLayout
@@ -286,6 +292,34 @@ export default function CategoryEditForm({
                                 );
                             }}
                         ></FormField>
+                        {(selectedParent ?? category.parent) && (
+                            <FormField
+                                control={form.control}
+                                name="defaultSelect"
+                                render={({ field }) => {
+                                    return (
+                                        <FormItem className="flex justify-between items-center h-9">
+                                            <FormLabel className="mb-0">
+                                                {t(
+                                                    "sub-category-default-select",
+                                                )}
+                                                :
+                                            </FormLabel>
+                                            <FormControl>
+                                                <Switch
+                                                    checked={Boolean(
+                                                        field.value,
+                                                    )}
+                                                    onCheckedChange={
+                                                        field.onChange
+                                                    }
+                                                />
+                                            </FormControl>
+                                        </FormItem>
+                                    );
+                                }}
+                            ></FormField>
+                        )}
                     </div>
                 </div>
 

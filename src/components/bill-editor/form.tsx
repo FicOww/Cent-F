@@ -34,6 +34,7 @@ import CurrentLocation from "../simple-location";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "../ui/select";
 import { goAddBill } from ".";
 import { RemarkHint } from "./remark";
+import ResizeHandle from "./resize";
 import {
     AttributionTagGroupSelector,
     default as TagGroupSelector,
@@ -94,10 +95,33 @@ export default function EditorForm({
         return pc;
     }, [isCreate]);
 
+    const getMatchDefaultCategory = useCallback(
+        (categoryId: string) => {
+            const category = [...incomes, ...expenses].find(
+                (item) => item.id === categoryId,
+            );
+            if (!category) {
+                return categoryId;
+            }
+            const defaultSub = category.children.find(
+                (item) => item.defaultSelect,
+            );
+            if (!defaultSub) {
+                return categoryId;
+            }
+            return defaultSub.id;
+        },
+        [expenses, incomes],
+    );
+
     const [billState, setBillState] = useState(() => {
         const init = {
             ...defaultBill,
-            categoryId: predictCategory?.id ?? defaultBill.categoryId,
+            categoryId:
+                edit?.categoryId ??
+                getMatchDefaultCategory(
+                    predictCategory?.id ?? defaultBill.categoryId,
+                ),
             time: lastAddedTime ?? Date.now(),
             ...edit,
         };
@@ -106,6 +130,30 @@ export default function EditorForm({
         }
         return init;
     });
+
+    const handleParentCategoryClick = useCallback(
+        (parentCategoryId: string) => {
+            setBillState((prev) => {
+                const parentCategory = [...incomes, ...expenses].find(
+                    (item) => item.id === parentCategoryId,
+                );
+                const isPreviousChild = parentCategory?.children.some(
+                    (item) => item.id === prev.categoryId,
+                );
+                if (isPreviousChild) {
+                    return {
+                        ...prev,
+                        categoryId: parentCategoryId,
+                    };
+                }
+                return {
+                    ...prev,
+                    categoryId: getMatchDefaultCategory(parentCategoryId),
+                };
+            });
+        },
+        [expenses, getMatchDefaultCategory, incomes],
+    );
 
     const { grouped } = useTag();
     const userId = useUserStore((state) => state.id);
@@ -366,8 +414,14 @@ export default function EditorForm({
                                                 : "expense",
                                         categoryId:
                                             v.type === "expense"
-                                                ? IncomeBillCategories[0].id
-                                                : ExpenseBillCategories[0].id,
+                                                ? getMatchDefaultCategory(
+                                                      IncomeBillCategories[0]
+                                                          .id,
+                                                  )
+                                                : getMatchDefaultCategory(
+                                                      ExpenseBillCategories[0]
+                                                          .id,
+                                                  ),
                                     }));
                                 }}
                             >
@@ -458,10 +512,7 @@ export default function EditorForm({
                                     category={item}
                                     selected={billState.categoryId === item.id}
                                     onMouseDown={() => {
-                                        setBillState((v) => ({
-                                            ...v,
-                                            categoryId: item.id,
-                                        }));
+                                        handleParentCategoryClick(item.id);
                                     }}
                                 />
                             ))}
@@ -545,9 +596,10 @@ export default function EditorForm({
                 <div
                     className={cn(
                         "h-[calc(480px+160px*(var(--bekh,0.5)-0.5))] sm:h-[calc(380px+160px*(var(--bekh,0.5)-0.5))] min-h-[264px] max-h-[calc(100%-124px)]",
-                        "keyboard-field flex gap-2 flex-col justify-start border-t border-border bg-zinc-100/95 text-foreground p-2 pb-[max(env(safe-area-inset-bottom),8px)] sm:rounded-b-md dark:border-white/10 dark:bg-stone-900 dark:text-white",
+                        "keyboard-field relative flex gap-2 flex-col justify-start border-t border-border bg-zinc-100/95 text-foreground p-2 pb-[max(env(safe-area-inset-bottom),8px)] sm:rounded-b-md dark:border-white/10 dark:bg-stone-900 dark:text-white",
                     )}
                 >
+                    <ResizeHandle />
                     {billState.type === "expense" && attributionGroup && (
                         <AttributionTagGroupSelector
                             compact

@@ -17,6 +17,7 @@ const Stat = lazyWithReload(
 );
 
 const Search = lazyWithReload(() => import("@/pages/search"));
+const Settlement = lazyWithReload(() => import("@/pages/settlement"));
 
 function RootRoute() {
     return (
@@ -36,6 +37,14 @@ function RootRoute() {
                     element={
                         <Suspense fallback={<LoadingSkeleton />}>
                             <Stat />
+                        </Suspense>
+                    }
+                />
+                <Route
+                    path="/settlement"
+                    element={
+                        <Suspense fallback={<LoadingSkeleton />}>
+                            <Settlement />
                         </Suspense>
                     }
                 />

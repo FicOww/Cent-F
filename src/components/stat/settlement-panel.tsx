@@ -1,450 +1,132 @@
-import { useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
-import { v4 } from "uuid";
-import { useShallow } from "zustand/shallow";
+import { useMemo } from "react";
+import { useNavigate } from "react-router";
+import {
+    buildSettlementSearchParams,
+    createSettlementRange,
+} from "@/features/settlement/period";
+import { buildSettlementOverview } from "@/features/settlement/query";
 import { useCreators } from "@/hooks/use-creator";
 import { amountToNumber } from "@/ledger/bill";
-import {
-    calculateSettlement,
-    SETTLEMENT_GROUP_NAME,
-    SETTLEMENT_HOME_TAG_NAME,
-} from "@/ledger/settlement";
-import type { Bill, BillTag, SettlementConfig } from "@/ledger/type";
+import { isSettlementConfigComplete } from "@/ledger/settlement";
+import type { Bill } from "@/ledger/type";
 import { useIntl } from "@/locale";
 import { useLedgerStore } from "@/store/ledger";
 import { useUserStore } from "@/store/user";
-import { cn } from "@/utils";
-import {
-    getEffectiveSettlementConfig,
-    getEffectiveTagGroups,
-    getLegacyPersonalSettlementConfig,
-    getLegacyPersonalTagGroups,
-} from "@/utils/tag-config";
-import Money from "../money";
+import { getEffectiveSettlementConfig } from "@/utils/tag-config";
 import { Button } from "../ui/button";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "../ui/select";
 
-type CreatorOption = {
-    id: string;
-    name: string;
-};
-
-const buildCreatorOptions = (
-    creators: { id: string | number; name: string }[],
-): CreatorOption[] =>
-    creators.map((creator) => ({
-        id: String(creator.id),
-        name: creator.name,
-    }));
-
-const getDefaultMemberIds = (
-    creators: CreatorOption[],
-    config?: SettlementConfig,
-) => {
-    const firstId = config?.memberAId
-        ? String(config.memberAId)
-        : creators[0]?.id;
-    const secondId = config?.memberBId
-        ? String(config.memberBId)
-        : creators.find((creator) => creator.id !== firstId)?.id;
-    return {
-        memberAId: firstId,
-        memberBId: secondId,
-    };
-};
-
-const upsertTag = (tags: BillTag[], id: string, name: string): BillTag[] => {
-    const index = tags.findIndex((tag) => tag.id === id);
-    const nextTag = { ...(tags[index] ?? {}), id, name };
-    if (index === -1) {
-        return [...tags, nextTag];
-    }
-    const nextTags = [...tags];
-    nextTags[index] = nextTag;
-    return nextTags;
-};
-
-export default function SettlementPanel({ bills }: { bills: Bill[] }) {
+export default function SettlementPanel({
+    bills,
+    range,
+}: {
+    bills: Bill[];
+    range: [number, number];
+}) {
     const t = useIntl();
+    const navigate = useNavigate();
+    const meta = useLedgerStore((state) => state.infos?.meta);
     const creators = useCreators();
     const userId = useUserStore((state) => state.id);
-    const [meta, tags = []] = useLedgerStore(
-        useShallow((state) => [state.infos?.meta, state.infos?.meta.tags]),
-    );
-
     const config = useMemo(
         () => getEffectiveSettlementConfig(meta, userId),
         [meta, userId],
     );
-    const tagGroups = useMemo(
-        () => getEffectiveTagGroups(meta, userId),
-        [meta, userId],
+    const settlementRange = useMemo(
+        () =>
+            createSettlementRange("custom", {
+                start: range[0],
+                end: range[1],
+            }),
+        [range],
+    );
+    const overview = useMemo(
+        () =>
+            buildSettlementOverview({
+                bills,
+                config,
+                range: settlementRange,
+                records: meta?.settlementRecords,
+            }),
+        [bills, config, meta?.settlementRecords, settlementRange],
     );
 
-    useEffect(() => {
-        const legacyConfig = getLegacyPersonalSettlementConfig(meta, userId);
-        const legacyTagGroups = getLegacyPersonalTagGroups(meta, userId);
-
-        if (
-            (meta?.settlement !== undefined || !legacyConfig) &&
-            (meta?.tagGroups !== undefined || !legacyTagGroups?.length)
-        ) {
-            return;
-        }
-
-        useLedgerStore
-            .getState()
-            .updateGlobalMeta((prev) => {
-                if (prev.settlement === undefined && legacyConfig) {
-                    prev.settlement = legacyConfig;
-                }
-                if (prev.tagGroups === undefined && legacyTagGroups?.length) {
-                    prev.tagGroups = legacyTagGroups;
-                }
-                return prev;
-            })
-            .catch((error) => {
-                console.error("Failed to migrate settlement config:", error);
-            });
-    }, [meta, userId]);
-
-    const creatorOptions = useMemo(
-        () => buildCreatorOptions(creators),
-        [creators],
-    );
-
-    const defaults = useMemo(
-        () => getDefaultMemberIds(creatorOptions, config),
-        [creatorOptions, config],
-    );
-
-    const [memberAId, setMemberAId] = useState(defaults.memberAId);
-    const [memberBId, setMemberBId] = useState(defaults.memberBId);
-
-    useEffect(() => {
-        setMemberAId(defaults.memberAId);
-        setMemberBId(defaults.memberBId);
-    }, [defaults.memberAId, defaults.memberBId]);
-
-    const memberA = creatorOptions.find((creator) => creator.id === memberAId);
-    const memberB = creatorOptions.find((creator) => creator.id === memberBId);
-
-    const resolvedConfig = useMemo(() => {
-        if (
-            !config?.homeTagId ||
-            !config.memberATagId ||
-            !config.memberBTagId ||
-            !memberAId ||
-            !memberBId
-        ) {
-            return undefined;
-        }
-        return {
-            memberAId,
-            memberBId,
-            homeTagId: config.homeTagId,
-            memberATagId: config.memberATagId,
-            memberBTagId: config.memberBTagId,
-        };
-    }, [config, memberAId, memberBId]);
-
-    const isConfigReady = useMemo(() => {
-        if (!config?.tagGroupId || !resolvedConfig) {
-            return false;
-        }
-        const requiredTagIds = [
-            resolvedConfig.homeTagId,
-            resolvedConfig.memberATagId,
-            resolvedConfig.memberBTagId,
-        ];
-        return (
-            requiredTagIds.every((tagId) =>
-                tags.some((tag) => tag.id === tagId),
-            ) && tagGroups.some((group) => group.id === config.tagGroupId)
+    const creatorNameMap = useMemo(() => {
+        return new Map(
+            creators.map((creator) => [String(creator.id), creator.name]),
         );
-    }, [config, resolvedConfig, tagGroups, tags]);
-
-    const settlement = useMemo(() => {
-        if (!resolvedConfig || !isConfigReady || memberAId === memberBId) {
-            return undefined;
-        }
-        return calculateSettlement(bills, resolvedConfig);
-    }, [bills, isConfigReady, memberAId, memberBId, resolvedConfig]);
+    }, [creators]);
 
     const summaryText = useMemo(() => {
-        if (!settlement || !memberA || !memberB) {
+        if (!isSettlementConfigComplete(config)) {
             return t("settlement-config-missing");
         }
-        const [firstMember, secondMember] = settlement.members;
-        if (firstMember.net === 0 && secondMember.net === 0) {
+        if (overview.bills.length === 0) {
+            return t("settlement-no-bills");
+        }
+        if (!overview.summary || overview.summary.kind === "balanced") {
             return t("settlement-summary-balanced");
         }
-        const receiver = firstMember.net > 0 ? memberA : memberB;
-        const payer = firstMember.net > 0 ? memberB : memberA;
-        const amount = Math.abs(
-            firstMember.net > 0 ? firstMember.net : secondMember.net,
-        );
         return t("settlement-summary-owed", {
-            payer: payer.name,
-            receiver: receiver.name,
-            amount: amountToNumber(amount),
+            payer:
+                creatorNameMap.get(overview.summary.payerId) ??
+                overview.summary.payerId,
+            receiver:
+                creatorNameMap.get(overview.summary.receiverId) ??
+                overview.summary.receiverId,
+            amount: amountToNumber(overview.summary.amount),
         });
-    }, [memberA, memberB, settlement, t]);
+    }, [config, creatorNameMap, overview, t]);
 
-    const saveConfig = async () => {
-        if (!memberA || !memberB) {
-            toast.error(t("settlement-config-member-missing"));
-            return;
+    const statusText = useMemo(() => {
+        switch (overview.status) {
+            case "needs-settlement":
+                return t("settlement-status-pending");
+            case "balanced":
+                return t("settlement-status-balanced");
+            case "settled":
+                return t("settlement-status-settled");
+            case "changed-since-settled":
+                return t("settlement-status-changed");
+            default:
+                return t("settlement-status-unconfigured");
         }
-        if (memberA.id === memberB.id) {
-            toast.error(t("settlement-config-member-conflict"));
-            return;
-        }
-
-        const nextConfig = {
-            memberAId: memberA.id,
-            memberBId: memberB.id,
-            homeTagId: config?.homeTagId ?? v4(),
-            memberATagId: config?.memberATagId ?? v4(),
-            memberBTagId: config?.memberBTagId ?? v4(),
-            tagGroupId: config?.tagGroupId ?? v4(),
-        };
-
-        await useLedgerStore.getState().updateGlobalMeta((prev) => {
-            const nextGroup = {
-                id: nextConfig.tagGroupId,
-                name: SETTLEMENT_GROUP_NAME,
-                color: "blue",
-                singleSelect: true,
-                required: true,
-                tagIds: [
-                    nextConfig.homeTagId,
-                    nextConfig.memberATagId,
-                    nextConfig.memberBTagId,
-                ],
-            };
-            const nextTags = [...(prev.tags ?? [])];
-            const nextGroups = [...(prev.tagGroups ?? [])];
-            const groupIndex = nextGroups.findIndex(
-                (group) => group.id === nextConfig.tagGroupId,
-            );
-
-            prev.tags = upsertTag(
-                nextTags,
-                nextConfig.homeTagId,
-                SETTLEMENT_HOME_TAG_NAME,
-            );
-            prev.tags = upsertTag(
-                prev.tags,
-                nextConfig.memberATagId,
-                memberA.name,
-            );
-            prev.tags = upsertTag(
-                prev.tags,
-                nextConfig.memberBTagId,
-                memberB.name,
-            );
-
-            if (groupIndex === -1) {
-                nextGroups.unshift(nextGroup);
-            } else {
-                nextGroups[groupIndex] = nextGroup;
-            }
-
-            prev.tagGroups = nextGroups;
-            prev.settlement = nextConfig;
-            return prev;
-        });
-
-        toast.success(t("settlement-config-saved"));
-    };
-
-    if (creatorOptions.length < 2) {
-        return (
-            <div className="rounded-md border p-3 w-full flex flex-col gap-2">
-                <h2 className="font-medium text-lg">{t("settlement-title")}</h2>
-                <div className="text-sm text-foreground/70">
-                    {t("settlement-needs-two-creators")}
-                </div>
-            </div>
-        );
-    }
+    }, [overview.status, t]);
 
     return (
-        <div className="rounded-md border p-3 w-full flex flex-col gap-3">
+        <div className="rounded-xl border p-4 w-full flex flex-col gap-3 bg-card shadow-sm">
             <div className="flex items-start justify-between gap-3">
                 <div className="flex flex-col gap-1">
                     <h2 className="font-medium text-lg">
                         {t("settlement-title")}
                     </h2>
                     <div className="text-xs text-foreground/70">
-                        {t("settlement-description")}
+                        {statusText}
                     </div>
                 </div>
-                <Button size="sm" onClick={saveConfig}>
-                    {t("settlement-save-config")}
+                <Button
+                    size="sm"
+                    onClick={() => {
+                        navigate(
+                            `/settlement?${buildSettlementSearchParams(
+                                settlementRange,
+                            )}`,
+                        );
+                    }}
+                >
+                    {t("settlement-view-detail")}
                 </Button>
             </div>
 
-            <div className="grid gap-2 sm:grid-cols-2">
-                <div className="flex flex-col gap-1">
-                    <div className="text-xs text-foreground/70">
-                        {t("settlement-member-a")}
-                    </div>
-                    <Select value={memberAId} onValueChange={setMemberAId}>
-                        <SelectTrigger>
-                            <SelectValue placeholder={t("select-a-user")} />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {creatorOptions.map((creator) => (
-                                <SelectItem key={creator.id} value={creator.id}>
-                                    {creator.name}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
-                <div className="flex flex-col gap-1">
-                    <div className="text-xs text-foreground/70">
-                        {t("settlement-member-b")}
-                    </div>
-                    <Select value={memberBId} onValueChange={setMemberBId}>
-                        <SelectTrigger>
-                            <SelectValue placeholder={t("select-a-user")} />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {creatorOptions.map((creator) => (
-                                <SelectItem key={creator.id} value={creator.id}>
-                                    {creator.name}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
+            <div className="rounded-xl border bg-background/70 px-4 py-3 text-sm font-medium">
+                {summaryText}
             </div>
 
-            <div className="text-xs text-foreground/70">
-                {t("settlement-setup-tip")}
-            </div>
-
-            {!isConfigReady ? (
-                <div className="rounded-md border border-dashed p-3 text-sm text-foreground/70">
-                    {t("settlement-config-missing")}
+            {overview.issueBillIds.length > 0 && (
+                <div className="text-xs text-amber-700 dark:text-amber-300">
+                    {t("settlement-issue-count", {
+                        n: overview.issueBillIds.length,
+                    })}
                 </div>
-            ) : (
-                <>
-                    {settlement && settlement.unassignedExpenseCount > 0 && (
-                        <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
-                            {t("settlement-missing-attribution-tip", {
-                                n: settlement.unassignedExpenseCount,
-                            })}
-                        </div>
-                    )}
-
-                    <div className="grid gap-3 sm:grid-cols-2">
-                        {settlement?.members.map((member) => {
-                            const creator = creatorOptions.find(
-                                (item) => item.id === member.memberId,
-                            );
-                            return (
-                                <div
-                                    key={member.memberId}
-                                    className="rounded-md border p-3 flex flex-col gap-2"
-                                >
-                                    <div className="font-medium">
-                                        {creator?.name ?? member.memberId}
-                                    </div>
-                                    <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-                                        <div className="text-foreground/70">
-                                            {t("settlement-self-expense")}
-                                        </div>
-                                        <div className="text-right">
-                                            <Money
-                                                value={amountToNumber(
-                                                    member.selfExpense,
-                                                )}
-                                            />
-                                        </div>
-
-                                        <div className="text-foreground/70">
-                                            {t("settlement-shared-expense")}
-                                        </div>
-                                        <div className="text-right">
-                                            <Money
-                                                value={amountToNumber(
-                                                    member.sharedExpense,
-                                                )}
-                                            />
-                                        </div>
-
-                                        <div className="text-foreground/70">
-                                            {t("settlement-other-expense")}
-                                        </div>
-                                        <div className="text-right">
-                                            <Money
-                                                value={amountToNumber(
-                                                    member.otherExpense,
-                                                )}
-                                            />
-                                        </div>
-
-                                        <div className="text-foreground/70">
-                                            {t("settlement-paid")}
-                                        </div>
-                                        <div className="text-right">
-                                            <Money
-                                                value={amountToNumber(
-                                                    member.paid,
-                                                )}
-                                            />
-                                        </div>
-
-                                        <div className="text-foreground/70">
-                                            {t("settlement-owed")}
-                                        </div>
-                                        <div className="text-right">
-                                            <Money
-                                                value={amountToNumber(
-                                                    member.owed,
-                                                )}
-                                            />
-                                        </div>
-
-                                        <div className="text-foreground/70">
-                                            {t("settlement-net")}
-                                        </div>
-                                        <div
-                                            className={cn(
-                                                "text-right font-medium",
-                                                member.net > 0
-                                                    ? "text-semantic-income"
-                                                    : member.net < 0
-                                                      ? "text-semantic-expense"
-                                                      : "",
-                                            )}
-                                        >
-                                            <Money
-                                                value={amountToNumber(
-                                                    member.net,
-                                                )}
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-
-                    <div className="rounded-md bg-accent px-3 py-2 text-sm font-medium">
-                        {summaryText}
-                    </div>
-                </>
             )}
         </div>
     );

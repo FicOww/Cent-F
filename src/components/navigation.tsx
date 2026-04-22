@@ -14,10 +14,12 @@ export default function Navigation() {
     const { theme, toggle } = useTheme();
 
     const currentTab = useMemo(() => {
-        return ["/stat", "/", "/search"].find((x) => location.pathname === x);
+        return ["/stat", "/settlement", "/", "/search"].find(
+            (x) => location.pathname === x,
+        );
     }, [location.pathname]);
 
-    const switchTab = (value: "/" | "/stat" | "/search") => {
+    const switchTab = (value: "/" | "/stat" | "/settlement" | "/search") => {
         navigate(`${value}`);
     };
 
@@ -52,7 +54,7 @@ export default function Navigation() {
             </button>
 
             {/* middle group */}
-            <div className="flex items-center rounded-full p-1 bg-background dark:bg-stone-500 w-56 h-14 m-2 shadow-md sm:flex-col sm:w-10 sm:h-50 sm:-order-1">
+            <div className="flex items-center rounded-full p-1 bg-background dark:bg-stone-500 w-68 h-14 m-2 shadow-md sm:flex-col sm:w-10 sm:h-64 sm:-order-1">
                 <button
                     type="button"
                     className={`flex-1 h-full w-full transition rounded-full flex items-center justify-center cursor-pointer hover:bg-[#9a9ba2] active:bg-[#cdcdd0] ${
@@ -82,6 +84,16 @@ export default function Navigation() {
                     onClick={() => switchTab("/stat")}
                 >
                     <i className="icon-[mdi--chart-box-outline] size-5"></i>
+                </button>
+
+                <button
+                    type="button"
+                    className={`flex-1 h-full w-full transition-all rounded-full flex items-center justify-center cursor-pointer hover:bg-[#9a9ba2] active:bg-[#cdcdd0] ${
+                        currentTab === "/settlement" ? "bg-foreground/20" : ""
+                    }`}
+                    onClick={() => switchTab("/settlement")}
+                >
+                    <i className="icon-[mdi--scale-balance] size-5"></i>
                 </button>
             </div>
 
