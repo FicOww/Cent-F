@@ -6,12 +6,12 @@ import type { AIConfig } from "@/ledger/extra-type";
 import { useIntl } from "@/locale";
 import { useLedgerStore } from "@/store/ledger";
 import { useUserStore } from "@/store/user";
+import { cn } from "@/utils";
+import { decodeApiKey, encodeApiKey } from "@/utils/api-key";
 import {
     getLegacyPersonalAssistantData,
     getSharedAssistantData,
 } from "@/utils/assistant-config";
-import { cn } from "@/utils";
-import { decodeApiKey, encodeApiKey } from "@/utils/api-key";
 import { requestAI } from "../assistant/request";
 import createConfirmProvider from "../confirm";
 import modal from "../modal";
@@ -341,7 +341,10 @@ function Form({ onCancel }: { onCancel?: () => void }) {
                 return;
             }
 
-            const legacyAssistant = getLegacyPersonalAssistantData(meta, userId);
+            const legacyAssistant = getLegacyPersonalAssistantData(
+                meta,
+                userId,
+            );
             if (!legacyAssistant) {
                 return;
             }
@@ -361,8 +364,7 @@ function Form({ onCancel }: { onCancel?: () => void }) {
                                     id: "zhipu-glm-migrated",
                                     name: "智谱GLM",
                                     apiKey: legacyAssistant.bigmodel.apiKey,
-                                    apiUrl:
-                                        "https://open.bigmodel.cn/api/paas/v4",
+                                    apiUrl: "https://open.bigmodel.cn/api/paas/v4",
                                     model: "glm-4-flash",
                                     apiType: "open-ai-compatible" as const,
                                 },

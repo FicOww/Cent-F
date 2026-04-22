@@ -2,8 +2,8 @@ import type { AIConfig } from "@/ledger/extra-type";
 import { t } from "@/locale";
 import { useLedgerStore } from "@/store/ledger";
 import { useUserStore } from "@/store/user";
-import { getEffectiveAssistantData } from "@/utils/assistant-config";
 import { decodeApiKey } from "@/utils/api-key";
+import { getEffectiveAssistantData } from "@/utils/assistant-config";
 
 /**
  * 从 store 获取 AI 配置

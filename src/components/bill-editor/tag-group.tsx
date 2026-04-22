@@ -1,11 +1,6 @@
 /** biome-ignore-all lint/a11y/noStaticElementInteractions: <explanation> */
 /** biome-ignore-all lint/a11y/useKeyWithClickEvents: <explanation> */
-import {
-    type ReactNode,
-    useCallback,
-    useMemo,
-    useState,
-} from "react";
+import { type ReactNode, useCallback, useMemo, useState } from "react";
 import { type BillTagGroupDetail, useTag } from "@/hooks/use-tag";
 import { cn } from "@/utils";
 import { HIGH_CONTRAST_SELECTED_CLASS } from "@/utils/selected-style";
@@ -219,7 +214,9 @@ export function AttributionTagGroupSelector({
         <div
             className={cn(
                 "w-full rounded-xl border border-border bg-background/70 shadow-sm",
-                compact ? "px-3 py-2 flex items-center gap-3" : "px-3 py-3 flex flex-col gap-3",
+                compact
+                    ? "px-3 py-2 flex items-center gap-3"
+                    : "px-3 py-3 flex flex-col gap-3",
             )}
         >
             <div
@@ -232,7 +229,9 @@ export function AttributionTagGroupSelector({
             </div>
             <div
                 className={cn(
-                    compact ? "flex-1 grid grid-cols-3 gap-2" : "grid grid-cols-3 gap-2",
+                    compact
+                        ? "flex-1 grid grid-cols-3 gap-2"
+                        : "grid grid-cols-3 gap-2",
                 )}
             >
                 {group.tags.map((tag) => {

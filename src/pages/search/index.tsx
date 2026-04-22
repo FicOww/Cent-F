@@ -63,14 +63,16 @@ export default function Page() {
     const { baseCurrency } = useCurrency();
     const { categories } = useCategory();
     const { state } = useLocation();
-    const returnTo = (state as
-        | {
-              returnTo?: {
-                  pathname: string;
-                  search?: string;
-              };
-          }
-        | undefined)?.returnTo;
+    const returnTo = (
+        state as
+            | {
+                  returnTo?: {
+                      pathname: string;
+                      search?: string;
+                  };
+              }
+            | undefined
+    )?.returnTo;
     const [form, setForm] = useState<BillFilter>(() => {
         const filter = state?.filter as BillFilter;
         if (filter) {

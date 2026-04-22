@@ -3,8 +3,8 @@ import { type ReactNode, useEffect, useMemo, useState } from "react";
 import type { DateRange } from "react-day-picker";
 import { useIntl } from "@/locale";
 import { cn } from "@/utils";
-import { Calendar } from "../ui/calendar";
 import { Button } from "../ui/button";
+import { Calendar } from "../ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 
 type DateSliceId = string; // weekly|YYYY
@@ -76,7 +76,7 @@ function CustomRangePicker({
 
     useEffect(() => {
         setDraftRange(toDateRange(value));
-    }, [open, value]);
+    }, [value]);
 
     const hasValue = value?.[0] !== undefined && value?.[1] !== undefined;
     const displayText = hasValue
@@ -86,10 +86,12 @@ function CustomRangePicker({
         : t("range");
     const selectedRange = draftRange;
     const calendarKey = `${selectedRange?.from?.toISOString() ?? "none"}-${selectedRange?.to?.toISOString() ?? "none"}`;
-    const helperText = draftRange?.from && !draftRange.to
-        ? t("please-select-end-date")
-        : t("please-select-start-date");
-    const defaultMonth = draftRange?.from ??
+    const helperText =
+        draftRange?.from && !draftRange.to
+            ? t("please-select-end-date")
+            : t("please-select-start-date");
+    const defaultMonth =
+        draftRange?.from ??
         (value?.[0] ? dayjs(value[0]).toDate() : dayjs().toDate());
 
     return (
@@ -372,9 +374,7 @@ export function useDateSliced({
         if (sliceId === undefined) {
             return customRange;
         }
-        const slice = viewSlices[viewType].find((v) =>
-            sliceId.endsWith(v.id),
-        );
+        const slice = viewSlices[viewType].find((v) => sliceId.endsWith(v.id));
         if (slice === undefined) {
             return customRange;
         }
