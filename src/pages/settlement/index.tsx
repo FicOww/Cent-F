@@ -10,6 +10,13 @@ import MonthPicker from "@/components/month-picker";
 import SettlementConfigCard from "@/components/settlement/config-card";
 import { Button } from "@/components/ui/button";
 import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import {
     buildSettlementSearchParams,
     createSettlementRange,
     getSettlementRangeLabel,
@@ -40,6 +47,7 @@ const chipClassName =
 const chipActiveClassName = "bg-foreground text-background border-foreground";
 const chipInactiveClassName =
     "bg-transparent border-border text-foreground/70 hover:text-foreground";
+const allFilterValue = "__all__";
 
 export default function SettlementPage() {
     const t = useIntl();
@@ -48,6 +56,8 @@ export default function SettlementPage() {
     const [overview, setOverview] = useState<SettlementOverview>();
     const [loading, setLoading] = useState(true);
     const [showConfig, setShowConfig] = useState(false);
+    const [personFilter, setPersonFilter] = useState(allFilterValue);
+    const [attributionFilter, setAttributionFilter] = useState(allFilterValue);
     const currentBookId = useBookStore((state) => state.currentBookId);
     const meta = useLedgerStore((state) => state.infos?.meta);
     const userId = useUserStore((state) => state.id);
@@ -128,6 +138,9 @@ export default function SettlementPage() {
             creators.map((creator) => [String(creator.id), creator.name]),
         );
     }, [creators]);
+    const tagNameMap = useMemo(() => {
+        return new Map((meta?.tags ?? []).map((tag) => [tag.id, tag.name]));
+    }, [meta?.tags]);
 
     const getCreatorName = useCallback(
         (id: string) => {
@@ -255,11 +268,111 @@ export default function SettlementPage() {
             )
             .sort((left, right) => right.settledAt - left.settledAt);
     }, [config, records]);
+    const memberIds = useMemo(() => {
+        if (!config || !isSettlementConfigComplete(config)) {
+            return [];
+        }
+
+        return [String(config.memberAId), String(config.memberBId)];
+    }, [config]);
+    const personFilterOptions = useMemo(() => {
+        return memberIds.map((id) => ({
+            value: id,
+            label: getCreatorName(id),
+        }));
+    }, [getCreatorName, memberIds]);
+    const attributionFilterOptions = useMemo(() => {
+        if (!config || !isSettlementConfigComplete(config)) {
+            return [];
+        }
+
+        return [
+            {
+                value: config.homeTagId,
+                label:
+                    tagNameMap.get(config.homeTagId) ??
+                    t("settlement-attribution-home"),
+            },
+            {
+                value: config.memberATagId,
+                label:
+                    tagNameMap.get(config.memberATagId) ??
+                    getCreatorName(String(config.memberAId)),
+            },
+            {
+                value: config.memberBTagId,
+                label:
+                    tagNameMap.get(config.memberBTagId) ??
+                    getCreatorName(String(config.memberBId)),
+            },
+        ];
+    }, [config, getCreatorName, t, tagNameMap]);
+
+    useEffect(() => {
+        if (
+            personFilter !== allFilterValue &&
+            !personFilterOptions.some((option) => option.value === personFilter)
+        ) {
+            setPersonFilter(allFilterValue);
+        }
+
+        if (
+            attributionFilter !== allFilterValue &&
+            !attributionFilterOptions.some(
+                (option) => option.value === attributionFilter,
+            )
+        ) {
+            setAttributionFilter(allFilterValue);
+        }
+    }, [
+        attributionFilter,
+        attributionFilterOptions,
+        personFilter,
+        personFilterOptions,
+    ]);
+
     const settlementBills = useMemo(() => {
-        return [...(overview?.bills ?? [])].sort(
-            (left, right) => right.time - left.time,
+        return [...(overview?.bills ?? [])]
+            .filter((bill) => {
+                if (bill.type !== "expense") {
+                    return false;
+                }
+
+                if (memberIds.length === 0) {
+                    return true;
+                }
+
+                return memberIds.includes(String(bill.creatorId));
+            })
+            .sort((left, right) => right.time - left.time);
+    }, [memberIds, overview?.bills]);
+    const filteredSettlementBills = useMemo(() => {
+        return settlementBills.filter((bill) => {
+            if (
+                personFilter !== allFilterValue &&
+                String(bill.creatorId) !== personFilter
+            ) {
+                return false;
+            }
+
+            if (
+                attributionFilter !== allFilterValue &&
+                !bill.tagIds?.includes(attributionFilter)
+            ) {
+                return false;
+            }
+
+            return true;
+        });
+    }, [attributionFilter, personFilter, settlementBills]);
+    const filteredSettlementAmount = useMemo(() => {
+        return filteredSettlementBills.reduce(
+            (total, bill) => total + Math.abs(bill.amount),
+            0,
         );
-    }, [overview?.bills]);
+    }, [filteredSettlementBills]);
+    const hasBillFilter =
+        personFilter !== allFilterValue || attributionFilter !== allFilterValue;
 
     return (
         <div className="w-full h-full overflow-y-auto page-show">
@@ -511,40 +624,121 @@ export default function SettlementPage() {
                 )}
 
                 <div className="rounded-2xl border bg-card p-4 shadow-sm">
-                    <div className="flex items-start justify-between gap-3">
-                        <div>
-                            <div className="text-base font-medium">
-                                {t("settlement-period-bills")}
+                    <div className="flex flex-col gap-3">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                                <div className="text-base font-medium">
+                                    {t("settlement-period-bills")}
+                                </div>
+                                <div className="mt-1 text-sm text-foreground/70">
+                                    {hasBillFilter
+                                        ? t("settlement-filtered-records", {
+                                              filtered:
+                                                  filteredSettlementBills.length,
+                                              total: settlementBills.length,
+                                          })
+                                        : t("total-records", {
+                                              n: settlementBills.length,
+                                          })}
+                                </div>
+                                {overview?.issueBillIds.length ? (
+                                    <div className="mt-1 text-xs text-amber-600 dark:text-amber-300">
+                                        {t("settlement-issue-count", {
+                                            n: overview.issueBillIds.length,
+                                        })}
+                                    </div>
+                                ) : null}
                             </div>
-                            <div className="mt-1 text-sm text-foreground/70">
-                                {overview?.issueBillIds.length
-                                    ? t("settlement-issue-count", {
-                                          n: overview.issueBillIds.length,
-                                      })
-                                    : t("total-records", {
-                                          n: settlementBills.length,
-                                      })}
+                            <div className="text-right text-sm">
+                                <div className="text-xs text-foreground/55">
+                                    {t("settlement-filtered-total")}
+                                </div>
+                                <div className="font-semibold">
+                                    <Money
+                                        value={amountToNumber(
+                                            filteredSettlementAmount,
+                                        )}
+                                    />
+                                </div>
+                            </div>
+                            {overview?.issueBillIds.length ? (
+                                <Button
+                                    variant="outline"
+                                    onClick={() => {
+                                        openSearch({
+                                            ids: overview.issueBillIds,
+                                            start: range.start,
+                                            end: range.end,
+                                        });
+                                    }}
+                                >
+                                    {t("settlement-go-fix-attribution")}
+                                </Button>
+                            ) : null}
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                            <div className="flex flex-col gap-1">
+                                <div className="text-xs text-foreground/60">
+                                    {t("settlement-filter-person")}
+                                </div>
+                                <Select
+                                    value={personFilter}
+                                    onValueChange={setPersonFilter}
+                                >
+                                    <SelectTrigger className="w-full">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value={allFilterValue}>
+                                            {t("settlement-filter-all-people")}
+                                        </SelectItem>
+                                        {personFilterOptions.map((option) => (
+                                            <SelectItem
+                                                key={option.value}
+                                                value={option.value}
+                                            >
+                                                {option.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="flex flex-col gap-1">
+                                <div className="text-xs text-foreground/60">
+                                    {t("settlement-filter-attribution")}
+                                </div>
+                                <Select
+                                    value={attributionFilter}
+                                    onValueChange={setAttributionFilter}
+                                >
+                                    <SelectTrigger className="w-full">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value={allFilterValue}>
+                                            {t(
+                                                "settlement-filter-all-attributions",
+                                            )}
+                                        </SelectItem>
+                                        {attributionFilterOptions.map(
+                                            (option) => (
+                                                <SelectItem
+                                                    key={option.value}
+                                                    value={option.value}
+                                                >
+                                                    {option.label}
+                                                </SelectItem>
+                                            ),
+                                        )}
+                                    </SelectContent>
+                                </Select>
                             </div>
                         </div>
-                        {overview?.issueBillIds.length ? (
-                            <Button
-                                variant="outline"
-                                onClick={() => {
-                                    openSearch({
-                                        ids: overview.issueBillIds,
-                                        start: range.start,
-                                        end: range.end,
-                                    });
-                                }}
-                            >
-                                {t("settlement-go-fix-attribution")}
-                            </Button>
-                        ) : null}
                     </div>
                     <div className="mt-3 h-[420px] rounded-xl border bg-background/50">
-                        {settlementBills.length > 0 ? (
+                        {filteredSettlementBills.length > 0 ? (
                             <Ledger
-                                bills={settlementBills}
+                                bills={filteredSettlementBills}
                                 showTime
                                 afterEdit={() => {
                                     void loadOverview();
@@ -552,7 +746,9 @@ export default function SettlementPage() {
                             />
                         ) : (
                             <div className="flex h-full items-center justify-center px-4 text-sm text-foreground/60">
-                                {t("settlement-no-bills")}
+                                {hasBillFilter
+                                    ? t("settlement-filter-no-bills")
+                                    : t("settlement-no-bills")}
                             </div>
                         )}
                     </div>
