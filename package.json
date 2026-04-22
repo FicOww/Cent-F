@@ -12,6 +12,7 @@
 		"verify": "tsc -b && vite build",
 		"preview": "vite preview --host --port 5173",
 		"check": "biome check --write",
+		"upstream:check": "node scripts/check-upstream.mjs",
 		"pre-commit": "pnpm run lint"
 	},
 	"dependencies": {

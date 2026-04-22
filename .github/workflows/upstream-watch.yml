@@ -1,0 +1,35 @@
+name: Watch upstream updates
+
+on:
+  schedule:
+    # 02:00 UTC = 10:00 Asia/Shanghai.
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check-upstream:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check upstream activity
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          UPSTREAM_REPOSITORY: glink25/Cent
+          UPSTREAM_BRANCH: main
+          TARGET_BRANCH: main
+          REPORT_ISSUE_LABEL: upstream-update
+          UPSTREAM_ACTIVITY_LOOKBACK_DAYS: 7
+        run: node scripts/check-upstream.mjs
