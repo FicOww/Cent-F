@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
-import { appendFileSync } from "node:fs";
 
 const upstreamRepository = process.env.UPSTREAM_REPOSITORY ?? "glink25/Cent";
 const upstreamBranch = process.env.UPSTREAM_BRANCH ?? "main";
@@ -285,19 +284,11 @@ async function listReportIssues(repository, state = "all") {
         return [];
     }
 
-    let issues;
-    try {
-        issues = await githubJson(
-            `/repos/${repository}/issues?state=${state}&labels=${encodeURIComponent(
-                reportLabel,
-            )}&sort=updated&direction=desc&per_page=20`,
-        );
-    } catch (error) {
-        if (isIssuesDisabled(error)) {
-            return [];
-        }
-        throw error;
-    }
+    const issues = await githubJson(
+        `/repos/${repository}/issues?state=${state}&labels=${encodeURIComponent(
+            reportLabel,
+        )}&sort=updated&direction=desc&per_page=20`,
+    );
 
     return issues.filter(
         (issue) =>
@@ -492,45 +483,16 @@ async function createOrUpdateIssue({
     comment,
 }) {
     if (!githubToken) {
-        writeFallbackReport(body);
+        console.log(
+            "GITHUB_TOKEN is not set, so the upstream report was generated locally only.",
+        );
+        console.log(body);
         return;
     }
 
-    try {
-        if (openIssue) {
-            await githubJson(
-                `/repos/${repository}/issues/${openIssue.number}`,
-                {
-                    method: "PATCH",
-                    body: JSON.stringify({
-                        title,
-                        body,
-                        labels: [reportLabel],
-                    }),
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                },
-            );
-
-            await githubJson(
-                `/repos/${repository}/issues/${openIssue.number}/comments`,
-                {
-                    method: "POST",
-                    body: JSON.stringify({
-                        body: comment,
-                    }),
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                },
-            );
-            console.log(`Updated issue #${openIssue.number}: ${title}`);
-            return;
-        }
-
-        const issue = await githubJson(`/repos/${repository}/issues`, {
-            method: "POST",
+    if (openIssue) {
+        await githubJson(`/repos/${repository}/issues/${openIssue.number}`, {
+            method: "PATCH",
             body: JSON.stringify({
                 title,
                 body,
@@ -540,31 +502,35 @@ async function createOrUpdateIssue({
                 "Content-Type": "application/json",
             },
         });
-        console.log(`Created issue #${issue.number}: ${title}`);
-    } catch (error) {
-        if (isIssuesDisabled(error)) {
-            writeFallbackReport(
-                `${body}\n\n> Issues are disabled in this repository, so this report was written to the GitHub Actions step summary instead of an issue.`,
-            );
-            return;
-        }
-        throw error;
-    }
-}
 
-function isIssuesDisabled(error) {
-    return (
-        error instanceof Error &&
-        error.message.includes("GitHub API 410") &&
-        error.message.includes("Issues has been disabled")
-    );
-}
-
-function writeFallbackReport(body) {
-    console.log(body);
-    if (process.env.GITHUB_STEP_SUMMARY) {
-        appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${body}\n`);
+        await githubJson(
+            `/repos/${repository}/issues/${openIssue.number}/comments`,
+            {
+                method: "POST",
+                body: JSON.stringify({
+                    body: comment,
+                }),
+                headers: {
+                    "Content-Type": "application/json",
+                },
+            },
+        );
+        console.log(`Updated issue #${openIssue.number}: ${title}`);
+        return;
     }
+
+    const issue = await githubJson(`/repos/${repository}/issues`, {
+        method: "POST",
+        body: JSON.stringify({
+            title,
+            body,
+            labels: [reportLabel],
+        }),
+        headers: {
+            "Content-Type": "application/json",
+        },
+    });
+    console.log(`Created issue #${issue.number}: ${title}`);
 }
 
 async function main() {

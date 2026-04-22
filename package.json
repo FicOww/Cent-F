@@ -3,6 +3,7 @@
 	"private": true,
 	"version": "1.5",
 	"type": "module",
+	"packageManager": "pnpm@10.31.0",
 	"scripts": {
 		"dev": "vite --host --port 5173 --strictPort",
 		"build": "pnpm run lint && vite build",
