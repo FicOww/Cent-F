@@ -1,4 +1,4 @@
-export const Permission = {
+const Permission = {
     Billing: "billing",
     Filter: "filter",
     Budget: "budget",
@@ -10,14 +10,14 @@ export const Permission = {
 
 type FormItemType = "text" | "number" | "date" | "select";
 
-export type FormItem = {
+type FormItem = {
     type: FormItemType;
     label: string;
     default?: string | number;
     options?: string[];
 };
 
-export type WidgetSettingsForm = Record<string, FormItem>;
+type WidgetSettingsForm = Record<string, FormItem>;
 
 type ParsedMetadata = {
     apiVersion: string;
@@ -25,7 +25,7 @@ type ParsedMetadata = {
     permissions: string[];
 };
 
-export type CompiledWidget = {
+type CompiledWidget = {
     name: string;
     apiVersion: string;
     permissions: (typeof Permission)[keyof typeof Permission][];
@@ -41,11 +41,10 @@ function parseMetadata(code: string): ParsedMetadata {
     };
 
     const jsdocMatch = code.match(/\/\*\*[\s\S]*?\*\//);
-    if (!jsdocMatch) {
-        return metadata;
-    }
+    if (!jsdocMatch) return metadata;
 
     const jsdoc = jsdocMatch[0];
+
     const apiVersionMatch = jsdoc.match(/@widget-api\s+([\d.]+)/);
     if (apiVersionMatch) {
         metadata.apiVersion = apiVersionMatch[1];
@@ -60,10 +59,8 @@ function parseMetadata(code: string): ParsedMetadata {
     if (permissionsMatch) {
         metadata.permissions = permissionsMatch[1]
             .split(",")
-            .map((permission) => permission.trim())
-            .filter((permission) =>
-                Object.values(Permission).includes(permission as never),
-            );
+            .map((p) => p.trim())
+            .filter((p) => Object.values(Permission).includes(p as any));
     }
 
     return metadata;
@@ -78,8 +75,9 @@ function extractConfigExport(code: string): string | null {
 
 function parseConfigObject(configStr: string): WidgetSettingsForm {
     const config: WidgetSettingsForm = {};
+
     const fieldRegex = /(\w+)\s*:\s*\{([^}]+)\}/g;
-    let match = fieldRegex.exec(configStr);
+    let match: RegExpExecArray | null = fieldRegex.exec(configStr);
 
     while (match !== null) {
         const fieldName = match[1];
@@ -101,15 +99,15 @@ function parseConfigObject(configStr: string): WidgetSettingsForm {
 
             if (defaultMatch) {
                 item.default = defaultMatch[2]
-                    ? Number.parseInt(defaultMatch[2], 10)
+                    ? parseInt(defaultMatch[2])
                     : defaultMatch[1];
             }
 
             if (optionsMatch && type === "select") {
                 item.options = optionsMatch[1]
                     .split(",")
-                    .map((option) => option.trim().replace(/['"]/g, ""))
-                    .filter(Boolean);
+                    .map((o) => o.trim().replace(/['"]/g, ""))
+                    .filter((o) => o);
             }
 
             config[fieldName] = item;
@@ -123,14 +121,21 @@ function parseConfigObject(configStr: string): WidgetSettingsForm {
 
 export default function compileWidget(widgetCode: string): CompiledWidget {
     const metadata = parseMetadata(widgetCode);
+
+    let config: WidgetSettingsForm = {};
     const configStr = extractConfigExport(widgetCode);
-    const config = configStr ? parseConfigObject(configStr) : {};
+    if (configStr) {
+        config = parseConfigObject(configStr);
+    }
 
     return {
         name: metadata.name,
         apiVersion: metadata.apiVersion,
-        permissions: metadata.permissions as CompiledWidget["permissions"],
+        permissions: metadata.permissions as any,
         config,
         code: widgetCode,
     };
 }
+
+export type { CompiledWidget, FormItem, WidgetSettingsForm };
+export { Permission };

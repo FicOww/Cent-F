@@ -5,14 +5,18 @@ export type Widget = {
     name: string;
     code: string;
     permissions: string[];
-    settings?: Record<string, unknown>;
+    settings?: Record<string, any>;
     createdAt: number;
     updatedAt: number;
 };
 
+export type WidgetStore = {
+    widgets: Widget[];
+};
+
 export type DSLNode = {
     type: "Flex" | "Text" | "Image" | "Container";
-    props: Record<string, unknown>;
+    props: Record<string, any>;
     children: DSLNode[];
     style: DSLStyle;
 };

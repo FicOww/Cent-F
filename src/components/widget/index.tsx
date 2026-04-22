@@ -4,8 +4,7 @@ import { Button } from "../ui/button";
 import { WidgetEditProvider } from "./edit-form";
 import { showWidgetList, WidgetListProvider } from "./list-form";
 
-const betaClassName =
-    "relative after:content-['beta'] after:rounded after:bg-yellow-400 after:px-[2px] after:text-[8px] after:block after:absolute after:top-0 after:right-0 after:translate-x-[calc(100%+4px)]";
+const betaClassName = `relative after:content-['beta'] after:rounded after:bg-yellow-400 after:px-[2px] after:text-[8px] after:block after:absolute after:top-0 after:right-0 after:translate-x-[calc(100%+4px)]`;
 
 export default function WidgetSettings() {
     const t = useIntl();

@@ -65,13 +65,11 @@ function WidgetNode({ node, path = "" }: { node: DSLNode; path?: string }) {
 
     switch (node.type) {
         case "Text":
-            return (
-                <span style={style}>{String(node.props.content ?? "")}</span>
-            );
+            return <span style={style}>{node.props.content}</span>;
+
         case "Image":
-            return (
-                <img src={String(node.props.src ?? "")} alt="" style={style} />
-            );
+            return <img src={node.props.src} alt="" style={style} />;
+
         case "Flex":
             return (
                 <div style={{ display: "flex", ...style }}>
@@ -84,6 +82,7 @@ function WidgetNode({ node, path = "" }: { node: DSLNode; path?: string }) {
                     ))}
                 </div>
             );
+
         case "Container":
             return (
                 <div style={style}>
@@ -96,18 +95,21 @@ function WidgetNode({ node, path = "" }: { node: DSLNode; path?: string }) {
                     ))}
                 </div>
             );
+
         default:
             return null;
     }
 }
 
+type WidgetRendererProps = {
+    dsl: DSLNode | null | undefined;
+    className?: string;
+};
+
 export default function WidgetRenderer({
     dsl,
     className,
-}: {
-    dsl: DSLNode | null | undefined;
-    className?: string;
-}) {
+}: WidgetRendererProps) {
     if (!dsl) {
         return (
             <div

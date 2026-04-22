@@ -1,7 +1,7 @@
 import type { UserInfo } from "@/api/endpoints/type";
 import type { Budget } from "@/ledger/extra-type";
 import type { Bill, BillCategory, BillTag } from "@/ledger/type";
-import createSandBox from "@/utils/sandbox";
+import createSandBox from "../../../utils/sandbox";
 import compileWidget, { Permission } from "./compile";
 import InjectCode from "./global-inject.js?raw";
 
@@ -31,12 +31,12 @@ type WidgetEnv = {
 
 type WidgetContext = {
     data: WidgetData;
-    settings: Record<string, unknown>;
+    settings: Record<string, any>;
     env: WidgetEnv;
 };
 
 type RunWidgetOptions = {
-    settings?: Record<string, unknown>;
+    settings?: Record<string, any>;
     env?: Partial<WidgetEnv>;
     getData: () => Promise<{
         bills: Bill[];
@@ -61,7 +61,9 @@ export default async function runWidget(
     options: RunWidgetOptions,
 ) {
     const widget = compileWidget(widgetCode);
+
     const realData = await options.getData();
+
     const data: WidgetData = {};
 
     if (widget.permissions.includes(Permission.Billing)) {
@@ -90,7 +92,7 @@ export default async function runWidget(
         data.tags = realData.tags;
     }
 
-    const settings: Record<string, unknown> = {};
+    const settings: Record<string, any> = {};
     if (widget.config) {
         for (const [key, configItem] of Object.entries(widget.config)) {
             if (options.settings && options.settings[key] !== undefined) {
@@ -100,6 +102,7 @@ export default async function runWidget(
             }
         }
     }
+
     if (options.settings) {
         Object.assign(settings, options.settings);
     }
@@ -109,27 +112,28 @@ export default async function runWidget(
         language: options.env?.language ?? "zh-CN",
     };
 
-    const sandbox = createSandBox(InjectCode);
+    const ctx: WidgetContext = {
+        data,
+        settings,
+        env,
+    };
+
+    const sandbox = createSandBox([]);
+
     try {
-        const result = await sandbox.runDefaultExport(
+        const rendered = await sandbox.runDefaultExport(
             `${InjectCode}\n${widget.code}`,
-            [
-                {
-                    data,
-                    settings,
-                    env,
-                } satisfies WidgetContext,
-            ],
+            [ctx],
             5000,
         );
         return {
-            success: true as const,
-            result,
+            success: true,
+            result: rendered,
             widget,
         };
     } catch (error) {
         return {
-            success: false as const,
+            success: false,
             error: error instanceof Error ? error.message : String(error),
             widget,
         };

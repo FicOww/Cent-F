@@ -60,6 +60,10 @@ export function BookForm() {
         });
     }, []);
 
+    useEffect(() => {
+        useBookStore.getState().updateBookList();
+    }, []);
+
     if (!isLogin) {
         return null;
     }

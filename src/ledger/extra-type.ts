@@ -1,20 +1,20 @@
 import type { Bill, BillType } from "./type";
 
-/** 标签组可以快捷收纳标签，可以略过
+/** 鏍囩缁勫彲浠ュ揩鎹锋敹绾虫爣绛撅紝鍙互鐣ヨ繃
  */
 export type BillTagGroup = {
     name: string;
     id: string;
     color: string;
-    /** 是否单选，开启后该标签组最多只能选中一个 */
+    /** 鏄惁鍗曢€夛紝寮€鍚悗璇ユ爣绛剧粍鏈€澶氬彧鑳介€変腑涓€涓?*/
     singleSelect?: boolean;
-    /** 是否必选，开启后该标签组必须选择一个（默认选择第一个标签） */
+    /** 鏄惁蹇呴€夛紝寮€鍚悗璇ユ爣绛剧粍蹇呴』閫夋嫨涓€涓紙榛樿閫夋嫨绗竴涓爣绛撅級 */
     required?: boolean;
     tagIds?: string[];
 };
 
 /**
- * 预算，不需要转换预算，可以略过
+ * 棰勭畻锛屼笉闇€瑕佽浆鎹㈤绠楋紝鍙互鐣ヨ繃
  */
 export type Budget = {
     id: string;
@@ -36,7 +36,7 @@ export type Budget = {
 };
 
 /**
- * 过滤器，不需要转换，可以略过
+ * 杩囨护鍣紝涓嶉渶瑕佽浆鎹紝鍙互鐣ヨ繃
  */
 export type BillFilter = Partial<{
     ids: string[];
@@ -60,11 +60,21 @@ export type BillFilter = Partial<{
     currencies?: string[];
 }>;
 
+export type BillFilterViewModule =
+    | "base-analysis" // BaseAnalysis 妯″潡锛岃繖涓ā鍧楀繀椤昏鍖呭惈鍦ㄥ唴
+    | "top-words" // AnalysisCloud 楂橀璇嶄簯灞曠ず妯″潡
+    | "map" // AnalysisMap 鍦板浘妯″潡
+    | "analysis" // AnalysisDetail 绠€鏄撳垎鏋愭ā鍧?
+    | "top-expense" // 鏈€楂樻敮鍑烘ā鍧?
+    | "top-income" // 鏈€楂樻敹鍏ユā鍧?
+    | `widget-${string}`; // Widget 缁勪欢
+
 export type BillFilterView = {
     id: string;
     filter: BillFilter;
     name: string;
     displayCurrency?: string;
+    modules?: BillFilterViewModule[];
 };
 
 export type SettlementConfig = {
@@ -90,7 +100,7 @@ export type SettlementRecord = {
     note?: string;
 };
 
-/** 周期记账配置 */
+/** 鍛ㄦ湡璁拌处閰嶇疆 */
 export type Scheduled = {
     id: string;
     title: string;
@@ -102,18 +112,18 @@ export type Scheduled = {
         unit: "week" | "day" | "month" | "year";
         value: number;
     };
-    // 最新一条自动记账记录的时间
+    // 鏈€鏂颁竴鏉¤嚜鍔ㄨ璐﹁褰曠殑鏃堕棿
     latest?: number;
 };
 
-// AI配置类型
+// AI閰嶇疆绫诲瀷
 export type AIConfig = {
     id: string;
     name: string;
     apiKey: string; // base64 encoded
     apiUrl: string;
     model: string;
-    apiType: "open-ai-compatible" | "google-ai-studio"; // 支持OpenAI兼容和Google AI Studio两种API格式
+    apiType: "open-ai-compatible" | "google-ai-studio"; // 鏀寔OpenAI鍏煎鍜孏oogle AI Studio涓ょAPI鏍煎紡
 };
 
 export type AssistantMeta = {
@@ -124,7 +134,7 @@ export type AssistantMeta = {
     defaultConfigId?: string;
 };
 
-// 个人配置，不需要转换，可以略过
+// 涓汉閰嶇疆锛屼笉闇€瑕佽浆鎹紝鍙互鐣ヨ繃
 export type PersonalMeta = {
     names?: Record<string, string>;
     rates?: Record<string, number>;

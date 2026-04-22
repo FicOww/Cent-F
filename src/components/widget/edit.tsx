@@ -48,7 +48,7 @@ export default function WidgetEdit({
     const t = useIntl();
     const { add, update } = useWidget();
     const [code, setCode] = useState(edit?.code ?? defaultCode);
-    const [formSettings, setFormSettings] = useState<Record<string, unknown>>(
+    const [formSettings, setFormSettings] = useState<Record<string, any>>(
         edit?.settings ?? {},
     );
     const [previewDsl, setPreviewDsl] = useState<DSLNode | null>(null);
@@ -74,20 +74,18 @@ export default function WidgetEdit({
             tag: true,
         });
 
-    const bills = useLedgerStore((state) => state.bills);
-    const budgets = useLedgerStore((state) => state.infos?.meta.budgets);
-    const creators = useLedgerStore((state) => state.infos?.creators);
-    const categories = useLedgerStore((state) => state.infos?.meta.categories);
-    const baseCurrency = useLedgerStore(
-        (state) => state.infos?.meta.baseCurrency,
-    );
+    const bills = useLedgerStore((s) => s.bills);
+    const budgets = useLedgerStore((s) => s.infos?.meta.budgets);
+    const creators = useLedgerStore((s) => s.infos?.creators);
+    const categories = useLedgerStore((s) => s.infos?.meta.categories);
+    const baseCurrency = useLedgerStore((s) => s.infos?.meta.baseCurrency);
     const customCurrencies = useLedgerStore(
-        (state) => state.infos?.meta.customCurrencies,
+        (s) => s.infos?.meta.customCurrencies,
     );
     const quickCurrencies = useLedgerStore(
-        (state) => state.infos?.meta.quickCurrencies,
+        (s) => s.infos?.meta.quickCurrencies,
     );
-    const tags = useLedgerStore((state) => state.infos?.meta.tags);
+    const tags = useLedgerStore((s) => s.infos?.meta.tags);
     const { theme } = useTheme();
 
     const compiled = useMemo(() => {
@@ -99,20 +97,20 @@ export default function WidgetEdit({
     }, [code]);
 
     useEffect(() => {
-        if (!compiled) {
-            return;
+        if (compiled) {
+            const newPermissions: WidgetPermissions = {
+                billing: compiled.permissions.includes(Permission.Billing),
+                filter: compiled.permissions.includes(Permission.Filter),
+                budget: compiled.permissions.includes(Permission.Budget),
+                collaborators: compiled.permissions.includes(
+                    Permission.Collaborators,
+                ),
+                category: compiled.permissions.includes(Permission.Category),
+                currency: compiled.permissions.includes(Permission.Currency),
+                tag: compiled.permissions.includes(Permission.Tag),
+            };
+            setPermissions(newPermissions);
         }
-        setPermissions({
-            billing: compiled.permissions.includes(Permission.Billing),
-            filter: compiled.permissions.includes(Permission.Filter),
-            budget: compiled.permissions.includes(Permission.Budget),
-            collaborators: compiled.permissions.includes(
-                Permission.Collaborators,
-            ),
-            category: compiled.permissions.includes(Permission.Category),
-            currency: compiled.permissions.includes(Permission.Currency),
-            tag: compiled.permissions.includes(Permission.Tag),
-        });
     }, [compiled]);
 
     const getData = useCallback(async () => {
@@ -128,11 +126,11 @@ export default function WidgetEdit({
             tags,
         };
     }, [
-        baseCurrency,
         bills,
         budgets,
-        categories,
         creators,
+        categories,
+        baseCurrency,
         customCurrencies,
         quickCurrencies,
         tags,
@@ -148,12 +146,13 @@ export default function WidgetEdit({
 
         const activePermissions = Object.entries(allowedPermissions)
             .filter(([, allowed]) => allowed)
-            .map(([permission]) => permission);
-        const hasDisallowedPermission = compiled.permissions.some(
-            (permission) => !activePermissions.includes(permission),
+            .map(([perm]) => perm);
+
+        const hasDisallowed = compiled.permissions.some(
+            (p) => !activePermissions.includes(p),
         );
 
-        if (hasDisallowedPermission) {
+        if (hasDisallowed) {
             setPreviewError("Some permissions are not allowed");
             setPreviewDsl(null);
             setPreviewLoading(false);
@@ -161,6 +160,7 @@ export default function WidgetEdit({
         }
 
         setPreviewLoading(true);
+
         try {
             const isDark =
                 theme === "dark" ||
@@ -179,36 +179,32 @@ export default function WidgetEdit({
             if (result.success && result.result) {
                 const dslNode =
                     (result.result as { _node?: DSLNode })?._node ??
-                    (result.result as DSLNode);
-                setPreviewDsl(dslNode);
+                    result.result;
+                setPreviewDsl(dslNode as DSLNode);
                 setPreviewError(null);
-                return;
+            } else {
+                setPreviewError(result.error ?? "Unknown error");
+                setPreviewDsl(null);
             }
-
-            setPreviewError(
-                "error" in result
-                    ? (result.error ?? "Unknown widget error")
-                    : "Unknown widget error",
-            );
-            setPreviewDsl(null);
-        } catch (error) {
-            setPreviewError(
-                error instanceof Error ? error.message : String(error),
-            );
+        } catch (err) {
+            setPreviewError(err instanceof Error ? err.message : String(err));
             setPreviewDsl(null);
         } finally {
             setPreviewLoading(false);
         }
-    }, [allowedPermissions, code, compiled, formSettings, getData, theme]);
+    }, [code, compiled, allowedPermissions, formSettings, getData, theme]);
 
     useEffect(() => {
-        const timer = window.setTimeout(() => {
-            void runPreview();
-        }, 500);
-        return () => {
-            window.clearTimeout(timer);
-        };
+        const timer = setTimeout(runPreview, 500);
+        return () => clearTimeout(timer);
     }, [runPreview]);
+
+    const handleFormChange = useCallback((key: string, value: any) => {
+        setFormSettings((prev) => ({
+            ...prev,
+            [key]: value,
+        }));
+    }, []);
 
     const handleSave = async () => {
         if (!compiled) {
@@ -240,7 +236,7 @@ export default function WidgetEdit({
         >
             <div className="flex flex-col h-full overflow-hidden">
                 <div className="flex-1 flex flex-col overflow-hidden">
-                    <div className="px-4 py-2 flex items-center gap-2 border-b flex-wrap">
+                    <div className="px-4 py-2 flex items-center gap-2 border-b">
                         <div className="text-sm font-medium">
                             {t("widget-permissions")}
                         </div>
@@ -258,12 +254,11 @@ export default function WidgetEdit({
                                                     key as keyof WidgetPermissions
                                                 ]
                                             }
-                                            onChange={(event) =>
+                                            onChange={(e) =>
                                                 setAllowedPermissions(
                                                     (prev) => ({
                                                         ...prev,
-                                                        [key]: event.target
-                                                            .checked,
+                                                        [key]: e.target.checked,
                                                     }),
                                                 )
                                             }
@@ -279,33 +274,30 @@ export default function WidgetEdit({
                         <ConfigForm
                             config={compiled.config}
                             settings={formSettings}
-                            onChange={(key, value) => {
-                                setFormSettings((prev) => ({
-                                    ...prev,
-                                    [key]: value,
-                                }));
-                            }}
+                            onChange={handleFormChange}
                         />
                     )}
 
                     <div className="flex-1 flex flex-col overflow-hidden">
-                        <div className="px-4 py-2 text-xs font-medium border-b bg-muted/50">
-                            {t("widget-preview")}
-                        </div>
-                        <div className="p-4 flex justify-center items-start">
-                            {previewLoading ? (
-                                <div className="max-w-[320px] w-full h-[120px] bg-card rounded-lg shadow-lg">
-                                    <WidgetPreviewSkeleton />
-                                </div>
-                            ) : previewError ? (
-                                <div className="text-red-500 text-xs whitespace-pre-wrap select-text">
-                                    {previewError}
-                                </div>
-                            ) : (
-                                <div className="max-w-[320px] w-full min-h-[120px] bg-card rounded-lg shadow-lg p-4">
-                                    <WidgetRenderer dsl={previewDsl} />
-                                </div>
-                            )}
+                        <div className="flex flex-col overflow-hidden">
+                            <div className="px-4 py-2 text-xs font-medium border-b bg-muted/50">
+                                {t("widget-preview")}
+                            </div>
+                            <div className="p-4 flex justify-center items-start">
+                                {previewLoading ? (
+                                    <div className="max-w-[320px] w-full h-[120px] bg-card rounded-lg shadow-lg">
+                                        <WidgetPreviewSkeleton />
+                                    </div>
+                                ) : previewError ? (
+                                    <div className="text-red-500 text-xs whitespace-pre-wrap select-text">
+                                        {previewError}
+                                    </div>
+                                ) : (
+                                    <div className="max-w-[320px] w-full h-[120px] bg-card rounded-lg shadow-lg p-4">
+                                        <WidgetRenderer dsl={previewDsl} />
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         <div className="flex-1 flex flex-col overflow-hidden border-t">
@@ -314,9 +306,7 @@ export default function WidgetEdit({
                             </div>
                             <textarea
                                 value={code}
-                                onChange={(event) =>
-                                    setCode(event.target.value)
-                                }
+                                onChange={(e) => setCode(e.target.value)}
                                 className="flex-1 w-full p-4 font-mono text-xs resize-none border-none outline-none bg-background"
                                 spellCheck={false}
                             />
@@ -328,9 +318,7 @@ export default function WidgetEdit({
                     <Button variant="outline" onClick={onCancel}>
                         {t("cancel")}
                     </Button>
-                    <Button onClick={() => void handleSave()}>
-                        {t("save")}
-                    </Button>
+                    <Button onClick={handleSave}>{t("save")}</Button>
                 </div>
             </div>
         </PopupLayout>

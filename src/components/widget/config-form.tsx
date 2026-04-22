@@ -10,15 +10,17 @@ import {
 import { useIntl } from "@/locale";
 import type { FormItem, WidgetSettingsForm } from "./core/compile";
 
+type ConfigFormProps = {
+    config: WidgetSettingsForm;
+    settings: Record<string, any>;
+    onChange: (key: string, value: any) => void;
+};
+
 export default function ConfigForm({
     config,
     settings,
     onChange,
-}: {
-    config: WidgetSettingsForm;
-    settings: Record<string, unknown>;
-    onChange: (key: string, value: unknown) => void;
-}) {
+}: ConfigFormProps) {
     const t = useIntl();
 
     if (Object.keys(config).length === 0) {
@@ -34,43 +36,43 @@ export default function ConfigForm({
                     <Input
                         id={`config-${key}`}
                         type="text"
-                        value={String(value)}
-                        onChange={(event) => onChange(key, event.target.value)}
+                        value={value}
+                        onChange={(e) => onChange(key, e.target.value)}
                         className="flex-1 h-8 text-xs"
                         placeholder={item.label}
                     />
                 );
+
             case "number":
                 return (
                     <Input
                         id={`config-${key}`}
                         type="number"
-                        value={String(value)}
-                        onChange={(event) =>
-                            onChange(
-                                key,
-                                Number.parseFloat(event.target.value) || 0,
-                            )
+                        value={value}
+                        onChange={(e) =>
+                            onChange(key, parseFloat(e.target.value) || 0)
                         }
                         className="flex-1 h-8 text-xs"
                         placeholder={item.label}
                     />
                 );
+
             case "date":
                 return (
                     <Input
                         id={`config-${key}`}
                         type="date"
-                        value={String(value)}
-                        onChange={(event) => onChange(key, event.target.value)}
+                        value={value}
+                        onChange={(e) => onChange(key, e.target.value)}
                         className="flex-1 h-8 text-xs"
                     />
                 );
+
             case "select":
                 return (
                     <Select
-                        value={String(value)}
-                        onValueChange={(nextValue) => onChange(key, nextValue)}
+                        value={value}
+                        onValueChange={(v) => onChange(key, v)}
                     >
                         <SelectTrigger className="flex-1 h-8 text-xs">
                             <SelectValue
@@ -86,6 +88,7 @@ export default function ConfigForm({
                         </SelectContent>
                     </Select>
                 );
+
             default:
                 return null;
         }

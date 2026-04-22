@@ -3,6 +3,7 @@ import { useTheme } from "@/hooks/use-theme";
 import type { Bill } from "@/ledger/type";
 import { useLedgerStore } from "@/store/ledger";
 import { Skeleton } from "../ui/skeleton";
+import compileWidget from "./core/compile";
 import runWidget from "./core/runner";
 import type { DSLNode } from "./type";
 import WidgetRenderer from "./widget";
@@ -18,36 +19,36 @@ export function WidgetPreviewSkeleton({ className }: { className?: string }) {
     );
 }
 
+type WidgetPreviewWrapperProps = {
+    code: string;
+    settings?: Record<string, any>;
+    className?: string;
+    bills?: Bill[];
+};
+
 export default function WidgetPreviewWrapper({
     code,
     settings = {},
     className,
     bills: externalBills,
-}: {
-    code: string;
-    settings?: Record<string, unknown>;
-    className?: string;
-    bills?: Bill[];
-}) {
+}: WidgetPreviewWrapperProps) {
     const [dsl, setDsl] = useState<DSLNode | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
 
-    const storeBills = useLedgerStore((state) => state.bills);
+    const storeBills = useLedgerStore((s) => s.bills);
     const bills = externalBills ?? storeBills;
-    const budgets = useLedgerStore((state) => state.infos?.meta.budgets);
-    const creators = useLedgerStore((state) => state.infos?.creators);
-    const categories = useLedgerStore((state) => state.infos?.meta.categories);
-    const baseCurrency = useLedgerStore(
-        (state) => state.infos?.meta.baseCurrency,
-    );
+    const budgets = useLedgerStore((s) => s.infos?.meta.budgets);
+    const creators = useLedgerStore((s) => s.infos?.creators);
+    const categories = useLedgerStore((s) => s.infos?.meta.categories);
+    const baseCurrency = useLedgerStore((s) => s.infos?.meta.baseCurrency);
     const customCurrencies = useLedgerStore(
-        (state) => state.infos?.meta.customCurrencies,
+        (s) => s.infos?.meta.customCurrencies,
     );
     const quickCurrencies = useLedgerStore(
-        (state) => state.infos?.meta.quickCurrencies,
+        (s) => s.infos?.meta.quickCurrencies,
     );
-    const tags = useLedgerStore((state) => state.infos?.meta.tags);
+    const tags = useLedgerStore((s) => s.infos?.meta.tags);
     const { theme } = useTheme();
 
     useEffect(() => {
@@ -58,6 +59,8 @@ export default function WidgetPreviewWrapper({
             setError(null);
 
             try {
+                const compiled = compileWidget(code);
+
                 const isDark =
                     theme === "dark" ||
                     (theme === "system" &&
@@ -83,34 +86,21 @@ export default function WidgetPreviewWrapper({
                     },
                 });
 
-                if (!mounted) {
-                    return;
-                }
+                if (!mounted) return;
 
                 if (result.success && result.result) {
                     const dslNode =
                         (result.result as { _node?: DSLNode })?._node ??
-                        (result.result as DSLNode);
-                    setDsl(dslNode);
+                        result.result;
+                    setDsl(dslNode as DSLNode);
                     setError(null);
-                    return;
+                } else {
+                    setError(result.error ?? "Unknown error");
+                    setDsl(null);
                 }
-
-                setError(
-                    "error" in result
-                        ? (result.error ?? "Unknown widget error")
-                        : "Unknown widget error",
-                );
-                setDsl(null);
-            } catch (innerError) {
-                if (!mounted) {
-                    return;
-                }
-                setError(
-                    innerError instanceof Error
-                        ? innerError.message
-                        : String(innerError),
-                );
+            } catch (err) {
+                if (!mounted) return;
+                setError(err instanceof Error ? err.message : String(err));
                 setDsl(null);
             } finally {
                 if (mounted) {
@@ -119,35 +109,40 @@ export default function WidgetPreviewWrapper({
             }
         };
 
-        void runPreview();
+        runPreview();
 
         return () => {
             mounted = false;
         };
     }, [
-        baseCurrency,
+        code,
+        settings,
         bills,
         budgets,
-        categories,
-        code,
         creators,
+        categories,
+        baseCurrency,
         customCurrencies,
         quickCurrencies,
-        settings,
         tags,
         theme,
     ]);
 
     if (loading) {
-        return <WidgetPreviewSkeleton className={className} />;
+        return (
+            <div className={`p-4 ${className ?? ""}`}>
+                <div className="space-y-3">
+                    <Skeleton className="h-4 w-3/4" />
+                    <Skeleton className="h-4 w-1/2" />
+                </div>
+            </div>
+        );
     }
 
     if (error) {
         return (
-            <div
-                className={`px-4 py-3 text-xs text-red-500 ${className ?? ""}`}
-            >
-                Error: {error.slice(0, 120)}
+            <div className={`text-xs text-red-500 ${className ?? ""}`}>
+                Error: {error.slice(0, 50)}
             </div>
         );
     }

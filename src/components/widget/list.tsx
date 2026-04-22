@@ -30,12 +30,12 @@ export default function WidgetList({ onCancel }: { onCancel?: () => void }) {
                             className="p-1 h-fit"
                             onClick={async () => {
                                 const ordered = await showSortableList(
-                                    widgets.map((widget) => ({
-                                        id: widget.id,
-                                        name: widget.name,
+                                    widgets.map((w) => ({
+                                        id: w.id,
+                                        name: w.name,
                                     })),
                                 );
-                                await reorder(ordered.map((item) => item.id));
+                                await reorder(ordered.map((o) => o.id));
                             }}
                         >
                             <i className="icon-[mdi--reorder-horizontal]"></i>
@@ -58,10 +58,8 @@ export default function WidgetList({ onCancel }: { onCancel?: () => void }) {
                             key={widget.id}
                             className="border rounded-md shadow-md py-4 px-4 bg-card flex flex-col gap-2"
                         >
-                            <div className="flex items-center justify-between gap-3">
-                                <div className="font-medium truncate">
-                                    {widget.name}
-                                </div>
+                            <div className="flex items-center justify-between">
+                                <div className="font-medium">{widget.name}</div>
                                 <div className="flex items-center gap-4">
                                     <div className="text-xs opacity-60 max-w-20 truncate">
                                         {widget.permissions.join(", ")}
@@ -92,7 +90,7 @@ export default function WidgetList({ onCancel }: { onCancel?: () => void }) {
                                     </Button>
                                 </div>
                             </div>
-                            <div className="min-h-[120px] w-full bg-card rounded-lg shadow overflow-hidden border py-2">
+                            <div className="h-[120px] w-full bg-card rounded-lg shadow overflow-hidden border py-2">
                                 <WidgetPreview widget={widget} />
                             </div>
                             <div className="flex items-center justify-end gap-2">
@@ -101,7 +99,7 @@ export default function WidgetList({ onCancel }: { onCancel?: () => void }) {
                                 </span>
                                 <Switch
                                     checked={homeWidgets.some(
-                                        (item) => item.id === widget.id,
+                                        (w) => w.id === widget.id,
                                     )}
                                     onCheckedChange={async () => {
                                         await toggleHomeWidget(widget.id);

@@ -1,11 +1,19 @@
 import dayjs from "dayjs";
 import { Switch } from "radix-ui";
-import { useEffect, useMemo, useState } from "react";
+import {
+    Fragment,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { useShallow } from "zustand/shallow";
 import { StorageDeferredAPI } from "@/api/storage";
 import type { AnalysisResult } from "@/api/storage/analysis";
-import { Assistant } from "@/components/assistant";
+import AssistantButton from "@/components/assistant";
+import { setEnv } from "@/components/assistant/tools/env";
 import {
     BillFilterViewProvider,
     showBillFilterView,
@@ -34,13 +42,19 @@ import {
 import SettlementPanel from "@/components/stat/settlement-panel";
 import { TagItem } from "@/components/stat/static-item";
 import { Button } from "@/components/ui/button";
+import WidgetPreview from "@/components/widget/preview";
 import { useCurrency } from "@/hooks/use-currency";
 import {
     DefaultFilterViewId,
     useCustomFilters,
 } from "@/hooks/use-custom-filters";
 import { useTag } from "@/hooks/use-tag";
-import type { BillFilter, BillFilterView } from "@/ledger/extra-type";
+import { useWidget } from "@/hooks/use-widget";
+import type {
+    BillFilter,
+    BillFilterView,
+    BillFilterViewModule,
+} from "@/ledger/extra-type";
 import type { Bill } from "@/ledger/type";
 import { useIntl } from "@/locale";
 import { useBookStore } from "@/store/book";
@@ -49,6 +63,15 @@ import { getStatDateState, setStatDateState } from "@/store/preference";
 import { cn } from "@/utils";
 
 type StatDimension = "category" | "user";
+
+const DefaultModuleOrder: BillFilterViewModule[] = [
+    "base-analysis",
+    "top-words",
+    "map",
+    "analysis",
+    "top-expense",
+    "top-income",
+];
 
 function getStatPath(filterViewId: string) {
     return filterViewId === DefaultFilterViewId
@@ -176,7 +199,7 @@ export default function Page() {
     const [searchParams] = useSearchParams();
 
     const { bills } = useLedgerStore();
-    const endTime = useMemo(() => Date.now(), []); //bills[0]?.time ?? dayjs();
+    const endTime = useMemo(() => Date.now(), []);
     const startTime = bills[bills.length - 1]?.time ?? dayjs();
 
     const customFilters = useLedgerStore(
@@ -250,28 +273,31 @@ export default function Page() {
     const focusType = (searchParams.get("focus") ?? "expense") as FocusType;
     const dimension = (searchParams.get("dimension") ??
         "category") as StatDimension;
-    const updateStatRoute = ({
-        nextFilterViewId = filterViewId,
-        nextDateState = dateState,
-        nextFocusType = focusType,
-        nextDimension = dimension,
-        replace = false,
-    }: {
-        nextFilterViewId?: string;
-        nextDateState?: DateSliceState;
-        nextFocusType?: FocusType;
-        nextDimension?: StatDimension;
-        replace?: boolean;
-    }) => {
-        navigate(
-            `${getStatPath(nextFilterViewId)}?${buildStatSearchParams({
-                dateState: nextDateState,
-                focusType: nextFocusType,
-                dimension: nextDimension,
-            })}`,
-            { replace },
-        );
-    };
+    const updateStatRoute = useCallback(
+        ({
+            nextFilterViewId = filterViewId,
+            nextDateState = dateState,
+            nextFocusType = focusType,
+            nextDimension = dimension,
+            replace = false,
+        }: {
+            nextFilterViewId?: string;
+            nextDateState?: DateSliceState;
+            nextFocusType?: FocusType;
+            nextDimension?: StatDimension;
+            replace?: boolean;
+        }) => {
+            navigate(
+                `${getStatPath(nextFilterViewId)}?${buildStatSearchParams({
+                    dateState: nextDateState,
+                    focusType: nextFocusType,
+                    dimension: nextDimension,
+                })}`,
+                { replace },
+            );
+        },
+        [dateState, dimension, filterViewId, focusType, navigate],
+    );
 
     useEffect(() => {
         setStatDateState(filterViewId, dateState);
@@ -291,26 +317,37 @@ export default function Page() {
         });
     }, [dateState, dimension, filterViewId, focusType, navigate, searchParams]);
 
-    const seeDetails = (append?: Partial<BillFilter>) => {
-        navigate("/search", {
-            state: {
-                filter: {
-                    ...selectedFilter,
-                    start: realRange[0],
-                    end: realRange[1],
-                    ...append,
+    const seeDetails = useCallback(
+        (append?: Partial<BillFilter>) => {
+            navigate("/search", {
+                state: {
+                    filter: {
+                        ...selectedFilter,
+                        start: realRange[0],
+                        end: realRange[1],
+                        ...append,
+                    },
+                    returnTo: {
+                        pathname: getStatPath(filterViewId),
+                        search: `?${buildStatSearchParams({
+                            dateState,
+                            focusType,
+                            dimension,
+                        })}`,
+                    },
                 },
-                returnTo: {
-                    pathname: getStatPath(filterViewId),
-                    search: `?${buildStatSearchParams({
-                        dateState,
-                        focusType,
-                        dimension,
-                    })}`,
-                },
-            },
-        });
-    };
+            });
+        },
+        [
+            dateState,
+            dimension,
+            filterViewId,
+            focusType,
+            navigate,
+            realRange,
+            selectedFilter,
+        ],
+    );
 
     const [filtered, setFiltered] = useState<Bill[]>([]);
 
@@ -341,6 +378,12 @@ export default function Page() {
     });
 
     const totalMoneys = FocusTypes.map((t) => dataSources.total[t]);
+
+    const { widgets } = useWidget();
+
+    const effectiveModules = useMemo(() => {
+        return selectedFilterView?.modules ?? DefaultModuleOrder;
+    }, [selectedFilterView?.modules]);
 
     const { tags } = useTag();
     const tagStructure = useMemo(
@@ -413,25 +456,21 @@ export default function Page() {
         const id = selectedFilterView.id;
         const action = await showBillFilterView({
             ...selectedFilterView,
-            // hideDelete: id === DefaultFilterViewId,
         });
         if (action === "delete") {
             await updateFilter(id);
+            const nextFilterView = allFilterViews[0];
+            const nextFullRange = [
+                nextFilterView.filter?.start ?? startTime,
+                nextFilterView.filter?.end ?? endTime,
+            ] as [number, number];
+            const nextViewSlices = buildDateSlices(nextFullRange, t);
             updateStatRoute({
-                nextFilterViewId: allFilterViews[0].id,
+                nextFilterViewId: nextFilterView.id,
                 nextDateState: normalizeDateState(
-                    getStatDateState(allFilterViews[0].id),
-                    buildDateSlices(
-                        [
-                            allFilterViews[0].filter?.start ?? startTime,
-                            allFilterViews[0].filter?.end ?? endTime,
-                        ],
-                        t,
-                    ),
-                    [
-                        allFilterViews[0].filter?.start ?? startTime,
-                        allFilterViews[0].filter?.end ?? endTime,
-                    ],
+                    getStatDateState(nextFilterView.id),
+                    nextViewSlices,
+                    nextFullRange,
                 ),
             });
             return;
@@ -489,254 +528,325 @@ export default function Page() {
         }),
         [selectedFilterView, focusType, viewType, realRange],
     );
-    return (
-        <div className="w-full h-full p-2 flex flex-col items-center justify-center gap-4 overflow-hidden page-show">
-            <div className="w-full mx-2 max-w-[600px] flex flex-col gap-2">
-                <div className="w-full flex flex-col gap-2">
-                    <div className="w-full flex">
-                        <div className="flex-1 flex gap-2 overflow-x-auto scrollbar-hidden">
-                            {allFilterViews.map((filter) => {
-                                const displayCurrency =
-                                    filter.displayCurrency === baseCurrency.id
-                                        ? undefined
-                                        : allCurrencies.find(
-                                              (v) =>
-                                                  v.id ===
-                                                  filter.displayCurrency,
-                                          );
-                                return (
-                                    <Button
-                                        key={filter.id}
-                                        size={"sm"}
-                                        className={cn(
-                                            filterViewId !== filter.id
-                                                ? "text-primary/50"
-                                                : "relative after:absolute after:bottom-[2px] after:left-3 after:w-[calc(100%-24px)] after:h-[2px] after:rounded-full after:bg-primary/20",
-                                        )}
-                                        variant="ghost"
-                                        onClick={() => {
-                                            const nextFullRange = [
-                                                filter.filter?.start ??
-                                                    startTime,
-                                                filter.filter?.end ?? endTime,
-                                            ] as [number, number];
-                                            const nextViewSlices =
-                                                buildDateSlices(
-                                                    nextFullRange,
-                                                    t,
-                                                );
-                                            updateStatRoute({
-                                                nextFilterViewId: filter.id,
-                                                nextDateState:
-                                                    normalizeDateState(
-                                                        getStatDateState(
-                                                            filter.id,
-                                                        ),
-                                                        nextViewSlices,
-                                                        nextFullRange,
-                                                    ),
-                                            });
-                                        }}
-                                    >
-                                        {displayCurrency?.symbol}
-                                        {filter.name}
-                                    </Button>
-                                );
-                            })}
-                        </div>
-                        <div className="">
-                            <Button
-                                variant="ghost"
-                                onClick={toAddFilter}
-                                size="sm"
-                            >
-                                <i className="icon-[mdi--plus] size-4"></i>
-                            </Button>
-                            <Button
-                                variant="ghost"
-                                onClick={toReOrder}
-                                size="sm"
-                            >
-                                <i className="icon-[mdi--menu] size-4"></i>
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-                <DateSliced
-                    viewSlices={viewSlices}
-                    value={dateState.sliceId}
-                    custom={dateState.customRange}
-                    onValueChange={(value) => {
-                        updateStatRoute({
-                            nextDateState: normalizeDateState(
-                                {
-                                    sliceId: value,
-                                    customRange:
-                                        dateState.customRange ??
-                                        getDefaultCustomRange(fullRange),
-                                },
-                                viewSlices,
-                                fullRange,
-                            ),
-                        });
-                    }}
-                    onCustomValueChange={(value) => {
-                        updateStatRoute({
-                            nextDateState: {
-                                sliceId: undefined,
-                                customRange: value,
-                            },
-                        });
-                    }}
-                    onClickSettings={toChangeFilter}
-                >
-                    <div className="flex items-center pr-2 relative">
-                        <Switch.Root
-                            checked={dimension === "user"}
-                            onCheckedChange={() => {
-                                updateStatRoute({
-                                    nextDimension:
-                                        dimension === "category"
-                                            ? "user"
-                                            : "category",
-                                });
-                            }}
-                            className="relative z-[0] h-[29px] w-[54px] cursor-pointer rounded-sm bg-blackA6 outline-none bg-stone-300 group"
-                        >
-                            <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center gap-2 z-[1]">
-                                <i className="icon-[mdi--view-grid-outline] group-[data-[state=checked]]:text-white"></i>
-                                <i className="icon-[mdi--account-outline]"></i>
-                            </div>
-                            <Switch.Thumb className="block size-[22px] translate-x-[4px] rounded-sm bg-background transition-transform duration-100 will-change-transform data-[state=checked]:translate-x-[28px]" />
-                        </Switch.Root>
-                    </div>
-                </DateSliced>
-            </div>
-            <FocusTypeSelector
-                value={focusType}
-                onValueChange={(v) => {
-                    updateStatRoute({
-                        nextFocusType: v,
-                    });
-                    setSelectedCategoryId(undefined);
-                }}
-                money={totalMoneys}
-            />
-            <div className="w-full px-2 flex-1 flex justify-center overflow-y-auto">
-                <div className="w-full max-w-[600px] flex flex-col items-center gap-4 relative">
-                    <Assistant env={envArg} />
-                    {Part}
-                    {tagStructure.length > 0 && (
-                        <div className="rounded-md border p-2 w-full flex flex-col">
-                            <h2 className="font-medium text-lg my-3 text-center">
-                                {t("tag-details")}
-                            </h2>
-                            <div className="table w-full border-collapse">
-                                <div className="table-row-group divide-y">
-                                    {tagStructure.map((struct) => {
-                                        const index =
-                                            FocusTypes.indexOf(focusType);
-                                        const money = [
-                                            struct.income,
-                                            struct.expense,
-                                            struct.income - struct.expense,
-                                        ][index];
-                                        const total = totalMoneys[index];
-                                        return (
-                                            <TagItem
-                                                key={struct.id}
-                                                name={struct.name}
-                                                money={money}
-                                                total={total}
-                                                type={focusType}
-                                                onClick={() => {
-                                                    seeDetails({
-                                                        tags: [struct.id],
-                                                    });
-                                                }}
-                                            ></TagItem>
-                                        );
-                                    })}
+
+    setEnv(envArg);
+
+    const getBillsByFocusType = useCallback(
+        (type: FocusType) => {
+            if (type === "expense") return filteredExpenseBills;
+            if (type === "income") return filteredIncomeBills;
+            return filtered;
+        },
+        [filtered, filteredExpenseBills, filteredIncomeBills],
+    );
+
+    const renderModule = useCallback(
+        (module: BillFilterViewModule) => {
+            if (module === "base-analysis") {
+                return (
+                    <Fragment key={module}>
+                        {Part}
+                        {tagStructure.length > 0 && (
+                            <div className="rounded-md border p-2 w-full flex flex-col">
+                                <h2 className="font-medium text-lg my-3 text-center">
+                                    {t("tag-details")}
+                                </h2>
+                                <div className="table w-full border-collapse">
+                                    <div className="table-row-group divide-y">
+                                        {tagStructure.map((struct) => {
+                                            const index =
+                                                FocusTypes.indexOf(focusType);
+                                            const money = [
+                                                struct.income,
+                                                struct.expense,
+                                                struct.income - struct.expense,
+                                            ][index];
+                                            const total = totalMoneys[index];
+                                            return (
+                                                <TagItem
+                                                    key={struct.id}
+                                                    name={struct.name}
+                                                    money={money}
+                                                    total={total}
+                                                    type={focusType}
+                                                    onClick={() => {
+                                                        seeDetails({
+                                                            tags: [struct.id],
+                                                        });
+                                                    }}
+                                                ></TagItem>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    )}
-                    <SettlementPanel
-                        bills={filtered}
-                        range={realRange as [number, number]}
-                    />
+                        )}
+                        <SettlementPanel
+                            bills={filtered}
+                            range={realRange as [number, number]}
+                        />
+                    </Fragment>
+                );
+            }
+            if (module === "top-words") {
+                return (
                     <AnalysisCloud
-                        bills={
-                            focusType === "expense"
-                                ? filteredExpenseBills
-                                : focusType === "income"
-                                  ? filteredIncomeBills
-                                  : filtered
-                        }
+                        key={module}
+                        bills={getBillsByFocusType(focusType)}
                     />
+                );
+            }
+            if (module === "map") {
+                return (
                     <AnalysisMap
-                        bills={
-                            focusType === "expense"
-                                ? filteredExpenseBills
-                                : focusType === "income"
-                                  ? filteredIncomeBills
-                                  : filtered
-                        }
+                        key={module}
+                        bills={getBillsByFocusType(focusType)}
                     />
-                    {analysis && (
-                        <div className="rounded-md border p-2 w-full flex flex-col">
-                            <h2 className="font-medium text-lg my-3 text-center">
-                                {t("analysis")}
-                            </h2>
-                            <AnalysisDetail
-                                analysis={analysis}
-                                type={focusType}
-                                unit={analysisUnit}
-                            />
+                );
+            }
+            if (module === "analysis") {
+                if (!analysis) return null;
+                return (
+                    <div
+                        key={module}
+                        className="rounded-md border p-2 w-full flex flex-col"
+                    >
+                        <h2 className="font-medium text-lg my-3 text-center">
+                            {t("analysis")}
+                        </h2>
+                        <AnalysisDetail
+                            analysis={analysis}
+                            type={focusType}
+                            unit={analysisUnit}
+                        />
+                    </div>
+                );
+            }
+            if (module === "top-expense") {
+                if (!dataSources.highestExpenseBill) return null;
+                return (
+                    <div key={module} className="rounded-md border p-2 w-full">
+                        {t("highest-expense")}:
+                        <BillItem
+                            className="w-full"
+                            bill={dataSources.highestExpenseBill}
+                            showTime
+                            onClick={() =>
+                                showBillInfo(dataSources.highestExpenseBill!)
+                            }
+                        />
+                    </div>
+                );
+            }
+            if (module === "top-income") {
+                if (!dataSources.highestIncomeBill) return null;
+                return (
+                    <div key={module} className="rounded-md border p-2 w-full">
+                        {t("highest-income")}:
+                        <BillItem
+                            className="w-full"
+                            bill={dataSources.highestIncomeBill}
+                            showTime
+                            onClick={() =>
+                                showBillInfo(dataSources.highestIncomeBill!)
+                            }
+                        />
+                    </div>
+                );
+            }
+            if (module.startsWith("widget-")) {
+                const widgetId = module.slice(7);
+                const widget = widgets.find((w) => w.id === widgetId);
+                if (!widget) return null;
+                return (
+                    <div key={module} className="rounded-md border w-full">
+                        <WidgetPreview
+                            widget={widget}
+                            bills={getBillsByFocusType(focusType)}
+                        />
+                    </div>
+                );
+            }
+            return null;
+        },
+        [
+            Part,
+            analysis,
+            analysisUnit,
+            dataSources.highestExpenseBill,
+            dataSources.highestIncomeBill,
+            filtered,
+            focusType,
+            getBillsByFocusType,
+            realRange,
+            seeDetails,
+            t,
+            tagStructure,
+            totalMoneys,
+            widgets,
+        ],
+    );
+
+    const sidePanelRef = useRef<HTMLDivElement>(null);
+
+    return (
+        <div className="w-full h-full overflow-hidden flex page-show">
+            <div className="flex-1 h-full p-2 flex flex-col items-center justify-center gap-4 overflow-hidden transition-width">
+                <div className="w-full mx-2 max-w-[600px] flex flex-col gap-2">
+                    <div className="w-full flex flex-col gap-2">
+                        <div className="w-full flex">
+                            <div className="flex-1 flex gap-2 overflow-x-auto scrollbar-hidden">
+                                {allFilterViews.map((filter) => {
+                                    const displayCurrency =
+                                        filter.displayCurrency ===
+                                        baseCurrency.id
+                                            ? undefined
+                                            : allCurrencies.find(
+                                                  (v) =>
+                                                      v.id ===
+                                                      filter.displayCurrency,
+                                              );
+                                    return (
+                                        <Button
+                                            key={filter.id}
+                                            size={"sm"}
+                                            className={cn(
+                                                filterViewId !== filter.id
+                                                    ? "text-primary/50"
+                                                    : "relative after:absolute after:bottom-[2px] after:left-3 after:w-[calc(100%-24px)] after:h-[2px] after:rounded-full after:bg-primary/20",
+                                            )}
+                                            variant="ghost"
+                                            onClick={() => {
+                                                const nextFullRange = [
+                                                    filter.filter?.start ??
+                                                        startTime,
+                                                    filter.filter?.end ??
+                                                        endTime,
+                                                ] as [number, number];
+                                                const nextViewSlices =
+                                                    buildDateSlices(
+                                                        nextFullRange,
+                                                        t,
+                                                    );
+                                                updateStatRoute({
+                                                    nextFilterViewId: filter.id,
+                                                    nextDateState:
+                                                        normalizeDateState(
+                                                            getStatDateState(
+                                                                filter.id,
+                                                            ),
+                                                            nextViewSlices,
+                                                            nextFullRange,
+                                                        ),
+                                                });
+                                            }}
+                                        >
+                                            {displayCurrency?.symbol}
+                                            {filter.name}
+                                        </Button>
+                                    );
+                                })}
+                            </div>
+                            <div className="flex items-center">
+                                <Button
+                                    variant="ghost"
+                                    onClick={toAddFilter}
+                                    size="sm"
+                                >
+                                    <i className="icon-[mdi--plus] size-4"></i>
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    onClick={toReOrder}
+                                    size="sm"
+                                >
+                                    <i className="icon-[mdi--menu] size-4"></i>
+                                </Button>
+                                <AssistantButton sidePanelRef={sidePanelRef} />
+                            </div>
                         </div>
-                    )}
-                    <div className="w-full flex flex-col gap-4">
-                        {dataSources.highestExpenseBill && (
-                            <div className="rounded-md border p-2">
-                                {t("highest-expense")}:
-                                <BillItem
-                                    className="w-full"
-                                    bill={dataSources.highestExpenseBill}
-                                    showTime
-                                    onClick={() =>
-                                        showBillInfo(
-                                            dataSources.highestExpenseBill!,
-                                        )
-                                    }
-                                />
-                            </div>
-                        )}
-                        {dataSources.highestIncomeBill && (
-                            <div className="rounded-md border p-2">
-                                {t("highest-income")}:
-                                <BillItem
-                                    className="w-full"
-                                    bill={dataSources.highestIncomeBill}
-                                    showTime
-                                    onClick={() =>
-                                        showBillInfo(
-                                            dataSources.highestIncomeBill!,
-                                        )
-                                    }
-                                />
-                            </div>
-                        )}
                     </div>
-                    <div>
-                        <Button variant="ghost" onClick={() => seeDetails()}>
-                            {t("see-all-ledgers")}
-                            <i className="icon-[mdi--arrow-up-right]"></i>
-                        </Button>
-                    </div>
-                    <div className="w-full h-20 flex-shrink-0"></div>
+                    <DateSliced
+                        viewSlices={viewSlices}
+                        value={dateState.sliceId}
+                        custom={dateState.customRange}
+                        onValueChange={(value) => {
+                            updateStatRoute({
+                                nextDateState: normalizeDateState(
+                                    {
+                                        sliceId: value,
+                                        customRange:
+                                            dateState.customRange ??
+                                            getDefaultCustomRange(fullRange),
+                                    },
+                                    viewSlices,
+                                    fullRange,
+                                ),
+                            });
+                        }}
+                        onCustomValueChange={(value) => {
+                            updateStatRoute({
+                                nextDateState: {
+                                    sliceId: undefined,
+                                    customRange: value,
+                                },
+                            });
+                        }}
+                        onClickSettings={toChangeFilter}
+                    >
+                        <div className="flex items-center pr-2 relative">
+                            <Switch.Root
+                                checked={dimension === "user"}
+                                onCheckedChange={() => {
+                                    updateStatRoute({
+                                        nextDimension:
+                                            dimension === "category"
+                                                ? "user"
+                                                : "category",
+                                    });
+                                }}
+                                className="relative z-[0] h-[29px] w-[54px] cursor-pointer rounded-sm bg-blackA6 outline-none bg-stone-300 group"
+                            >
+                                <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center gap-2 z-[1]">
+                                    <i className="icon-[mdi--view-grid-outline] group-[data-[state=checked]]:text-white"></i>
+                                    <i className="icon-[mdi--account-outline]"></i>
+                                </div>
+                                <Switch.Thumb className="block size-[22px] translate-x-[4px] rounded-sm bg-background transition-transform duration-100 will-change-transform data-[state=checked]:translate-x-[28px]" />
+                            </Switch.Root>
+                        </div>
+                    </DateSliced>
                 </div>
+                <FocusTypeSelector
+                    value={focusType}
+                    onValueChange={(v) => {
+                        updateStatRoute({
+                            nextFocusType: v,
+                        });
+                        setSelectedCategoryId(undefined);
+                    }}
+                    money={totalMoneys}
+                />
+                <div className="w-full px-2 flex-1 flex justify-center overflow-y-auto">
+                    <div className="w-full max-w-[600px] flex flex-col items-center gap-4 relative">
+                        {effectiveModules.map((module) => renderModule(module))}
+                        <div>
+                            <Button
+                                variant="ghost"
+                                onClick={() => seeDetails()}
+                            >
+                                {t("see-all-ledgers")}
+                                <i className="icon-[mdi--arrow-up-right]"></i>
+                            </Button>
+                        </div>
+                        <div className="w-full h-20 flex-shrink-0"></div>
+                    </div>
+                </div>
+                <BillFilterViewProvider />
             </div>
-            <BillFilterViewProvider />
+            <div
+                ref={sidePanelRef}
+                className="side-panel hidden md:flex w-[400px] empty:w-0 transition-all border-l"
+            ></div>
         </div>
     );
 }

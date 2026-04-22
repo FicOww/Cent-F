@@ -12,7 +12,7 @@ export function useWidget() {
     const add = async (
         widget: Omit<Widget, "id" | "createdAt" | "updatedAt">,
     ) => {
-        const nextWidget: Widget = {
+        const newWidget: Widget = {
             ...widget,
             id: v4(),
             createdAt: Date.now(),
@@ -21,10 +21,10 @@ export function useWidget() {
 
         await useLedgerStore.getState().updateGlobalMeta((prev) => ({
             ...prev,
-            widgets: [...(prev.widgets ?? []), nextWidget],
+            widgets: [...(prev.widgets ?? []), newWidget],
         }));
 
-        return nextWidget;
+        return newWidget;
     };
 
     const update = async (
@@ -33,10 +33,8 @@ export function useWidget() {
     ) => {
         await useLedgerStore.getState().updateGlobalMeta((prev) => ({
             ...prev,
-            widgets: (prev.widgets ?? []).map((widget) =>
-                widget.id === id
-                    ? { ...widget, ...updates, updatedAt: Date.now() }
-                    : widget,
+            widgets: (prev.widgets ?? []).map((w) =>
+                w.id === id ? { ...w, ...updates, updatedAt: Date.now() } : w,
             ),
         }));
     };
@@ -44,32 +42,36 @@ export function useWidget() {
     const remove = async (id: string) => {
         await useLedgerStore.getState().updateGlobalMeta((prev) => ({
             ...prev,
-            widgets: (prev.widgets ?? []).filter((widget) => widget.id !== id),
+            widgets: (prev.widgets ?? []).filter((w) => w.id !== id),
         }));
     };
 
     const reorder = async (orderedIds: string[]) => {
         await useLedgerStore.getState().updateGlobalMeta((prev) => {
             const widgetMap = new Map(
-                (prev.widgets ?? []).map((widget) => [widget.id, widget]),
+                (prev.widgets ?? []).map((w) => [w.id, w]),
             );
+
+            // 根据传入的 ID 顺序重新排序
+            const reordered = orderedIds
+                .map((id) => widgetMap.get(id))
+                .filter((w): w is Widget => w !== undefined);
+
             return {
                 ...prev,
-                widgets: orderedIds
-                    .map((id) => widgetMap.get(id))
-                    .filter((widget): widget is Widget => widget !== undefined),
+                widgets: reordered,
             };
         });
     };
 
-    const get = (id: string) => widgets.find((widget) => widget.id === id);
+    const get = (id: string) => widgets.find((w) => w.id === id);
 
     const { id: userId } = useUserStore();
     const homeWidgets = useLedgerStore(
         useShallow((state) => {
-            const personal = state.infos?.meta.personal?.[String(userId)];
+            const personal = state.infos?.meta.personal?.[userId];
             return (
-                widgets.filter((widget) =>
+                widgets?.filter((widget) =>
                     personal?.homeWidgets?.includes(widget.id),
                 ) ?? []
             );
@@ -77,12 +79,14 @@ export function useWidget() {
     );
 
     const toggleHomeWidget = async (widgetId: string) => {
-        await useLedgerStore.getState().updatePersonalMeta((prev) => ({
-            ...prev,
-            homeWidgets: prev.homeWidgets?.includes(widgetId)
-                ? prev.homeWidgets.filter((id) => id !== widgetId)
-                : [...(prev.homeWidgets ?? []), widgetId],
-        }));
+        await useLedgerStore.getState().updatePersonalMeta((prev) => {
+            return {
+                ...prev,
+                homeWidgets: prev.homeWidgets?.includes(widgetId)
+                    ? prev.homeWidgets.filter((id) => id !== widgetId)
+                    : [...(prev.homeWidgets ?? []), widgetId],
+            };
+        });
     };
 
     return {

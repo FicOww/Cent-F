@@ -1,3 +1,4 @@
+// @annotation: Full 鍦ㄨ繖閲屽苟鏃犲疄闄呬綔鐢紝鍙槸鐢ㄤ簬鎷撳睍涓€浜涢澶栧唴瀹癸紝鏃犻渶鑰冭檻锛孎ull<T> 鍙涓虹瓑浠蜂簬 T
 import type { Widget } from "@/components/widget/type";
 import type { Full } from "@/database/stash";
 import type {
@@ -63,6 +64,7 @@ export type BillCategory = {
     color: string;
     customName?: boolean;
     parent?: string;
+    // 榛樿閫変腑锛屼粎瀵瑰瓙绫荤敓鏁堬紝濡傛灉涓簍rue锛屽垯璇ュ瓙绫荤殑鐖剁被鍦ㄩ娆￠€変腑鏃讹紝棣栧厛浼氶€変腑璇ュ瓙绫伙紝鍐嶆鐐瑰嚮鐖剁被鍙互閫変腑鐖剁被
     defaultSelect?: boolean;
 };
 
