@@ -13,11 +13,18 @@ import {
 import type { OutputType } from "@/database/stash";
 import type { Bill } from "@/ledger/type";
 import { cn } from "@/utils";
-import { denseDate } from "@/utils/time";
 import { showBillInfo } from "../bill-info";
 import { Checkbox } from "../ui/checkbox";
 import BillItem from "./item";
 import "./style.scss";
+
+const formatLedgerDividerDate = (date: Dayjs) => {
+    const now = dayjs();
+    if (date.isSame(now, "year")) {
+        return date.format("MM-DD");
+    }
+    return date.format("YYYY-MM-DD");
+};
 
 function Divider({
     date: day,
@@ -33,7 +40,7 @@ function Divider({
             }
             onClick={onClick}
         >
-            {denseDate(day)}
+            {formatLedgerDividerDate(day)}
         </div>
     );
 }
@@ -162,7 +169,7 @@ const Ledger = forwardRef<LedgerRef, LedgerProps>(
                         className="sticky top-0 z-10 pl-12 pr-4 py-1 text-sm ledger-divider bg-background/80 backdrop-blur-sm cursor-pointer"
                         onClick={() => onDateClick?.(stickyDate)}
                     >
-                        {denseDate(stickyDate)}
+                        {formatLedgerDividerDate(stickyDate)}
                     </div>
                 )}
                 <div
